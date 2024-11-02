@@ -1,65 +1,49 @@
-#![allow(dead_code)]
-
 use itertools::Itertools;
-use num_traits:: Num;
-use std::collections::{HashMap, HashSet, VecDeque, BinaryHeap};
+use num_traits::Zero;
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::cmp::Reverse;
+use std::ops::Add;
+use std::rc::Rc;
 
-// We use aliases for those traits for convenience.
-pub trait Node: Eq + Hash + Ord + Copy + Debug {}
-impl<T: Eq + Hash + Ord + Copy + Debug> Node for T {}
+// We use this wrapper over W to implement Ord from types that only implement PartialOrd. We simply assume that we
+// it doesn't make sense to have edges with nan weights so we will panic if we encounter this while trying to do a
+// comparison.
+#[derive(Copy, Clone, PartialEq, PartialOrd)]
+struct NotNan<W> {
+    value: W,
+}
 
-// Ord is required to use a heap, but that means that we can't work with floats (they have nan...)
-pub trait Weight: Num + Copy + Ord {}
-impl<T: Num + Copy + Ord> Weight for T {}
+impl<W: PartialOrd> Eq for NotNan<W> {}
 
-// Same for this type, which is just a hashmap
-type AdjacencyList<N, W>
-where
-    N: Node,
-    W: Weight,
-= HashMap<N, Vec<Edge<N, W>>>;
+impl<W: PartialOrd> Ord for NotNan<W> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+//We use an alias for this type for convenience, but is just a hashmap
+type AdjacencyList<N, W> = HashMap<Rc<N>, Vec<Edge<N, W>>>;
 
 /// Represents a weighted edge from a parent node to `to` Node
 #[derive(Debug)]
-pub struct Edge<N, W>
-where
-    N: Node,
-    W: Weight,
-{
-    to: N,
+struct Edge<N, W> {
+    to: Rc<N>,
     weight: W,
-}
-
-/// Add a new edge to the adjacency list. If nodes `from` and `to` don't exist, insert them first.
-/// It assumes that the caller first check that the edge doesn't already exist.
-fn _add_edge<N, W>(adj_list: &mut AdjacencyList<N, W>, from: N, to: N, weight: W)
-where
-    N: Node,
-    W: Weight,
-{
-    adj_list
-        .entry(from)
-        .or_default()
-        .push(Edge { to: to, weight });
-
-    adj_list.entry(to).or_default();
 }
 
 /// Remove an edge from the adjacency list. If the edge doesn't exist, nothing is changed.
 fn _remove_edge<N, W>(adj_list: &mut AdjacencyList<N, W>, from: &N, to: &N)
 where
-    N: Node,
-    W: Weight,
+    N: Eq + Hash,
 {
     // We are guaranteed to have only one directed edge between two nodes.
     // Otherwise we would need to use edges.retain(|edge| edge.to != to)
     // We first get a mutable reference of the edges for `from` node and map over it if the node exists.
     // We then look for the index of the edge we're looking fore and remove it if we find it.
     adj_list.get_mut(from).map(|edges| {
-        if let Some(index) = edges.iter().position(|edge| &edge.to == to) {
+        if let Some(index) = edges.iter().position(|edge| edge.to.as_ref() == to) {
             edges.swap_remove(index);
         }
     });
@@ -72,15 +56,14 @@ where
 #[derive(Debug)]
 pub struct Graph<N, W>
 where
-    N: Node,
-    W: Weight,
+    N: Eq + Hash,
 {
     adj_list: AdjacencyList<N, W>,
     directed: bool,
 }
 
 impl Default for Graph<u32, i32> {
-    /// Defaults to `Graph<u32, i32>` of nodes encoded as 32 bits unsigned integers and weights as 32 bits integers.
+    /// Undirected graph with nodes encoded as 32 bits unsigned integers and weights as 32 bits integers.
     fn default() -> Self {
         Self {
             adj_list: HashMap::new(),
@@ -89,10 +72,10 @@ impl Default for Graph<u32, i32> {
     }
 }
 
-impl<N, W> Graph<N, W>
+impl<'a, N, W> Graph<N, W>
 where
-    N: Node,
-    W: Weight,
+    N: Hash + Eq + Ord + Clone + Debug,
+    W: Zero + Add + PartialOrd + Copy,
 {
     pub fn new(directed: bool) -> Self {
         Self {
@@ -122,39 +105,59 @@ where
         cnt
     }
 
-    /// Takes ownership of node for simplicity sake (I don't quite get lifetimes lol)
-    pub fn add_node(&mut self, node: N) -> Result<(), String> {
+    /// Add a new node to the graph. Return an error if the node already exists, otherwise return a Rc to the node
+    /// for further usage.  This is useful to avoid copies when N is not a primitive type.
+    pub fn add_node(&mut self, node: N) -> Result<Rc<N>, String> {
+        let node = Rc::new(node);
+
         if self.has_node(&node) {
             return Err(format!("Node {:?} already exists", node));
         }
 
-        self.adj_list.insert(node, Vec::new());
+        self.adj_list.insert(Rc::clone(&node), Vec::new());
 
-        Ok(())
+        Ok(node)
     }
 
-    /// Takes ownership of nodes for the same reason: I don't really get lifetimes
-    pub fn add_edge(&mut self, from: N, to: N, weight: W) -> Result<(), String> {
+    /// Add a new  weighted edge between `from` and `to` nodes. Return an error if the edge already exists.
+    pub fn add_edge(&'a mut self, from: N, to: N, weight: W) -> Result<(Rc<N>, Rc<N>), String> {
+        // Use Rc to manage shared ownership and avoid move issues with `from` and `to`
+        let from = Rc::new(from);
+        let to = Rc::new(to);
+
         if self.has_edge(&from, &to) {
             return Err(format!("Edge from {:?} to {:?} already exists", from, to));
         }
 
-        _add_edge(&mut self.adj_list, from, to, weight);
+        self.adj_list.entry(Rc::clone(&from)).or_default();
+        self.adj_list.entry(Rc::clone(&to)).or_default();
 
-        if !self.directed {
-            _add_edge(&mut self.adj_list, to, from, weight);
+        if let Some(edge_list) = self.adj_list.get_mut(&from) {
+            edge_list.push(Edge {
+                to: Rc::clone(&to),
+                weight,
+            });
         }
 
-        Ok(())
+        if !self.directed {
+            if let Some(reverse_edge_list) = self.adj_list.get_mut(&to) {
+                reverse_edge_list.push(Edge {
+                    to: Rc::clone(&from),
+                    weight,
+                });
+            }
+        }
+
+        Ok((from, to))
     }
 
     /// Drop a node and any edge pointing to it.
     pub fn remove_node(&mut self, node: &N) {
         self.adj_list.remove(node);
 
-        // look for occurrences of the node in some edge from another node
+        // look for occurrences of the node in some edge from another node and drop the edge if found.
         for edges in self.adj_list.values_mut() {
-            if let Some(index) = edges.iter().position(|edge| &edge.to == node) {
+            if let Some(index) = edges.iter().position(|edge| edge.to.as_ref() == node) {
                 edges.swap_remove(index);
             }
         }
@@ -178,21 +181,25 @@ where
         // we first look for the node, if it doesn't exist we return false, otherwise we iterate over the edges
         // and try to find the one going to `to`. If we find it, we return true, otherwise false.
         self.adj_list.get(from).map_or(false, |edges| {
-            edges.iter().find(|&edge| &edge.to == to).is_some()
+            edges.iter().find(|&edge| edge.to.as_ref() == to).is_some()
         })
     }
 
+    /// Return references to all the nodes in the graph.
     pub fn get_nodes(&self) -> Vec<&N> {
-        self.adj_list.keys().collect()
+        self.adj_list.keys().map(|node| node.as_ref()).collect()
     }
 
-    /// Returns the number of outgoing edges from a given node.
+    /// Return the number of outgoing edges from a given node. Return None if the node is not in the graph.
     pub fn degree(&self, node: &N) -> Option<usize> {
         self.adj_list.get(node).map(|edges| edges.len())
     }
 
-    pub fn neighbors(&self, node: &N) -> Option<&Vec<Edge<N, W>>> {
-        self.adj_list.get(node)
+    /// Return references to all neighbors of `nodes`. Return None if the node is not in the graph.
+    pub fn neighbors(&self, node: &N) -> Option<Vec<&N>> {
+        self.adj_list
+            .get(node)
+            .map(|edges| edges.iter().map(|edge| edge.to.as_ref()).collect())
     }
 
     pub fn edge_weight(&self, from: &N, to: &N) -> Option<W> {
@@ -205,7 +212,7 @@ where
             .map(|edges| {
                 edges
                     .iter()
-                    .find(|&edge| &edge.to == to)
+                    .find(|&edge| edge.to.as_ref() == to)
                     .map(|edge| edge.weight)
             })
             .flatten()
@@ -230,15 +237,8 @@ where
         while let Some(node) = stack.pop() {
             if !visited.contains(node) {
                 visited.insert(node);
-
-                let neighbors = self
-                    .neighbors(node)
-                    .unwrap()
-                    .iter()
-                    .map(|edge| &edge.to);
-
-                stack.extend(neighbors);
-                out.push(*node);
+                stack.extend(self.neighbors(node).unwrap());
+                out.push(node.clone());
             }
         }
 
@@ -257,19 +257,13 @@ where
         let mut visited = HashSet::from([from]);
 
         while let Some(node) = queue.pop_front() {
-            // it's a bit hairy but it simply iterates over current node's edges, extract the Node attribute while
-            // filtering out nodes we already visited, and finally appending the next nodes to visit to the queue.
-            let neighbors: Vec<&N> = self
-                .neighbors(node)
-                .unwrap()
-                .iter()
-                .map(|edge| &edge.to)
-                .filter(|&node| !visited.contains(node))
-                .collect();
-
-            queue.extend(&neighbors);
-            visited.extend(&neighbors);
-            out.push(*node);
+            for neighbor in self.neighbors(node).unwrap() {
+                if !visited.contains(neighbor) {
+                    visited.insert(neighbor);
+                    queue.push_back(neighbor);
+                }
+            }
+            out.push(node.clone());
         }
 
         Some(out)
@@ -277,31 +271,37 @@ where
 
     pub fn dijkstra(&self, from: &N, to: &N) -> Option<(Vec<N>, W)> {
         // use an option to mean "not reachable" instead of infinity (as it would require another trait for W)
-        let mut distances: HashMap<&N, Option<W>> = self.adj_list.keys().map(|node| (node, None)).collect();
+        let mut distances: HashMap<&N, Option<W>> = self
+            .adj_list
+            .keys()
+            .map(|node| (node.as_ref(), None))
+            .collect();
         distances.insert(from, Some(W::zero()));
 
+        // because the std binary heap only works on elements that implement Ord, we have to wrap our type W
+        // in order to support float weights (that could potentially be nan and so only implement PartialOrd).
         let mut heap = BinaryHeap::new();
-        heap.push((W::zero(), from));
+        heap.push((NotNan { value: W::zero() }, from));
 
         let mut predecessors: HashMap<&N, &N> = HashMap::new();
 
         while let Some((ref cost, node)) = heap.pop() {
             // found the destination, let's build the path and return it
             if node == to {
-                let mut path = vec![*to];
+                let mut path = vec![to.clone()];
                 let mut current_node = to;
                 while let Some(&previous_node) = predecessors.get(current_node) {
-                    path.push(*previous_node);
+                    path.push(previous_node.clone());
                     current_node = previous_node;
                 }
                 path.reverse();
 
-                return Some((path, *cost));
+                return Some((path, cost.value));
             }
-            
+
             // we already found a better path from `from` to node so let's skip it
             if let Some(Some(distance)) = distances.get(node) {
-                if cost > distance {
+                if &cost.value > distance {
                     continue;
                 }
             }
@@ -309,15 +309,20 @@ where
             // update distances and predecessors for each neighbor
             if let Some(edges) = self.adj_list.get(node) {
                 for edge in edges {
-                    let next_node = &edge.to;
-                    let new_cost = *cost + edge.weight;
+                    let next_node = edge.to.as_ref();
+                    let new_cost = cost.value + edge.weight;
 
                     match distances.get(next_node) {
                         Some(Some(current_cost)) if &new_cost >= current_cost => continue,
                         _ => {
                             distances.insert(next_node, Some(new_cost));
                             predecessors.insert(next_node, node);
-                            heap.push((Reverse(new_cost).0, next_node));
+                            heap.push((
+                                NotNan {
+                                    value: Reverse(new_cost).0,
+                                },
+                                next_node,
+                            ));
                         }
                     }
                 }
@@ -340,13 +345,13 @@ where
             .keys()
             .sorted()
             .enumerate()
-            .map(|(index, node)| (node, index))
+            .map(|(index, node)| (node.as_ref(), index))
             .collect();
 
         for (from, edges) in self.adj_list.iter() {
             for Edge { to, weight } in edges.iter() {
-                let from = *node_to_index.get(from).unwrap();
-                let to = *node_to_index.get(to).unwrap();
+                let from = *node_to_index.get(from.as_ref()).unwrap();
+                let to = *node_to_index.get(to.as_ref()).unwrap();
                 out[from][to] = *weight;
             }
         }
