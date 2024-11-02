@@ -51,7 +51,7 @@ where
 ### Nodes
 
 - **Hashing and Equality**: while using a hash map as adjacency list provides $O(1)$ neighbor lookup, it does require that the node type `N` implements the traits `Hash` and `Eq`. Nevertheless, I think it's not too restrictive.
-- **Ordering**: shortest path algorithm is implemented using a binary heap whose elements are tuples of `(W, &N)` from the standard library. Ordering is done on both elements of the tuple if ordering on the first element results in a tie. As such, node type `N` needs to implement the `Ord` trait.
+- **Ordering**: shortest path algorithm is implemented using a binary heap from the standard library whose elements are tuples of `(W, &N)`. Ordering is done on both elements of the tuple if ordering on the first element results in a tie. As a consequence, node type `N` needs to implement the `Ord` trait.
 - **Cloning**: to get the nodes in BFS/DFS order or the shortest path between two nodes, we currently return copies of the nodes instead of references. So the type `N` need to also implement the trait `Clone`. This one is more due to my poor understanding of the lifetime mechanism, because there is no reason why we couldn't get references instead.
 
 ### Weights
@@ -179,6 +179,6 @@ The `add_edge` method returns reference-counted smart pointers (`Rc`) to the cre
 - [ ] Heuristic path finding (A*)
 - [ ] Bidirectional search for shortest-path finding
 - [ ] Random walks on graphs (unbiased & biased using edge weights)
-- [ ] Edges' weights aggregation functions
+- [ ] Edges weights aggregation functions
 - [ ] PageRank, Betweenness Centrality, Closeness Centrality
 - [ ] Get sub-graph based on predicates over the edge weights

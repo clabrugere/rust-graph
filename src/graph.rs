@@ -52,7 +52,6 @@ where
 /// Represents a graph stored using an adjacency list. It is implemented using a hashmap where nodes are used as keys
 /// and a `Vec<Edge>` as values for the edges from the key node. If the graph is undirected, all edges are duplicated.
 /// It is generic over the nodes and the edge weights.
-// TODO: make it generic over the nodes and edges
 #[derive(Debug)]
 pub struct Graph<N, W>
 where
@@ -107,7 +106,7 @@ where
     }
 
     /// Add a new node to the graph. Return an error if the node already exists, otherwise return a Rc to the node
-    /// for further usage.  This is useful to avoid copies when N is not a primitive type.
+    /// for further usage.  This is useful to avoid expensive copies when N is not a primitive type.
     pub fn add_node(&mut self, node: N) -> Result<Rc<N>, String> {
         let node = Rc::new(node);
 
