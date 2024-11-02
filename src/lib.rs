@@ -1,7 +1,9 @@
-pub mod graph;
+mod graph;
+pub use graph::Graph;
 
 #[cfg(test)]
 mod tests {
+    #[allow(dead_code)]
     use std::cmp::{Eq, Ord, PartialEq};
     use std::collections::HashSet;
     use std::hash::Hash;
