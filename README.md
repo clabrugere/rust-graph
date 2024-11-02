@@ -17,10 +17,10 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 
 ## Design choices
 
-The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node to a list of edges that store references to neighboring nodes along with weights. This adjacency list is implemented as a hash map where nodes are the keys, and each key's value is a variable-length array of `Edge` structs:
+The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node to a list of edges that store references to neighboring nodes along with weights. This adjacency list is implemented as a hash map, where nodes are the keys and each key's value is a variable-length array of `Edge` structs:
 
 ```rust
-type AdjacencyList<N, W> = HashMap<Rc<N>, Vec<Edge<N, W>>>;
+type AdjacencyList<N, W> = IndexMap<Rc<N>, Vec<Edge<N, W>>>;
 
 struct Edge<N, W> {
     to: Rc<N>,
@@ -51,7 +51,7 @@ where
 ### Nodes
 
 - **Hashing and Equality**: while using a hash map as adjacency list provides $O(1)$ neighbor lookup, it does require that the node type `N` implements the traits `Hash` and `Eq`. Nevertheless, I think it's not too restrictive.
-- **Ordering**: because we want to return the unique adjacency matrix built from the sorted nodes, we need them to be sortable. For that, they need to implement the trait `Ord`. This is because rust's hash maps don't maintain key's insertion order and provide iteration over the keys in arbitrary order. So we would end up in different (but isomorphic) adjacency matrices each time the method `adjacency_matrix` would be called. I don't think that's really an issue, but having a unique matrix per graph make it possible to easily unit test the method (and testing that two graphs are isomorphic is NP-hard so...). This does make the time complexity of this method go from $O(N + E)$ to $O(N log N + E)$ because of the sort over the nodes though.
+- **Ordering**: shortest path algorithm is implemented using a binary heap whose elements are tuples of `(W, &N)` from the standard library. Ordering is done on both elements of the tuple if ordering on the first element results in a tie. As such, node type `N` needs to implement the `Ord` trait.
 - **Cloning**: to get the nodes in BFS/DFS order or the shortest path between two nodes, we currently return copies of the nodes instead of references. So the type `N` need to also implement the trait `Clone`. This one is more due to my poor understanding of the lifetime mechanism, because there is no reason why we couldn't get references instead.
 
 ### Weights
@@ -61,7 +61,10 @@ where
 - **Copy**: in this implementation, we assume that edge weights remain simple types whose copy is inexpensive and done implicitly when required.
 
 ### Adjacency list
-For adjacency lists to be memory efficient, it's better if we only store references to other nodes in the edge list: otherwise we would end up with a much worse space complexity. The problem is that you can't directly use references to keys as values or you end up with all sorts of ownership issues all around. For example, rust's hash maps own the keys - so the nodes here - but we also need to store references to those as values from other nodes, and so ownership becomes multiple. 
+
+Instead of using a regular hash map, we use a special implementation `IndexMap` from the `indexmap` crate that provide a nice property: iteration ordering independent of the hashed key but rather based on insertion order. This is especially useful to provide a unique adjacency matrix based on node insertion order. Indeed, using the hash map from the standard library would require to sort keys first to generate a unique matrix per graph. Otherwise, we would only get isomorphic matrices at each invocation of the `adjacency_matrix` method.
+
+In addition, for adjacency lists to be memory efficient, it's better if we only store references to other nodes in the edge list: otherwise we would end up with a much worse space complexity. The problem is that you can't directly use references to keys as values or you end up with all sorts of ownership issues all around. For example, rust's hash maps own the keys - so the nodes here - but we also need to store references to those as values from other nodes, and so ownership becomes multiple. 
 
 This is not really an issue if we restrict ourself to primitive types, but it could become a problem for nodes that store large amounts of data. One solution I found to circumvent the issue is to use reference-counted smart pointers `Rc` from the standard library. This way we only store nodes one time, and use multiple references for the edges, saving memory!
 
@@ -163,19 +166,19 @@ The `add_edge` method returns reference-counted smart pointers (`Rc`) to the cre
 ## Improvements
 
 ### Core
-- Methods should always return reference to nodes and not copies (`bfs`, `dfs`, `dijkstra`)
-- Use `IndexMap` instead of `HashMap` for the adjacency list in order to have predictable iteration order based on insertion order and thus avoid sorting
-- Parallel/multi-threaded operations (`bfs`, `dfs`)
-- Implementation of `Clone` trait on the whole graph
+- [ ] Methods should always return reference to nodes and not copies (`bfs`, `dfs`, `dijkstra`)
+- [x] Use `IndexMap` instead of `HashMap` for the adjacency list in order to have predictable iteration order based on insertion and thus avoid sorting
+- [ ] Parallel/multi-threaded operations (`bfs`, `dfs`)
+- [ ] Implementation of `Clone` trait on the whole graph
 
 ### Features
-- Support shortest-path for negative edge weights (Bellman-Ford algorithm)
-- Insert nodes/edges from iterators
-- Create graph from file
-- Serialize/deserialize graphs
-- Heuristic path finding (A*)
-- Bidirectional search for shortest-path finding
-- Random walks on graphs (unbiased & biased using edge weights)
-- Edges' weights aggregation functions
-- PageRank, Betweenness Centrality, Closeness Centrality
-- Get sub-graph based on predicates over the edge weights
+- [ ] Support shortest-path for negative edge weights (Bellman-Ford algorithm)
+- [ ] Insert nodes/edges from iterators
+- [ ] Create graph from file
+- [ ] Serialize/deserialize graphs
+- [ ] Heuristic path finding (A*)
+- [ ] Bidirectional search for shortest-path finding
+- [ ] Random walks on graphs (unbiased & biased using edge weights)
+- [ ] Edges' weights aggregation functions
+- [ ] PageRank, Betweenness Centrality, Closeness Centrality
+- [ ] Get sub-graph based on predicates over the edge weights

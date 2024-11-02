@@ -1,4 +1,4 @@
-use itertools::Itertools;
+use indexmap::IndexMap;
 use num_traits::Zero;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
@@ -24,7 +24,7 @@ impl<W: PartialOrd> Ord for NotNan<W> {
 }
 
 //We use an alias for this type for convenience, but is just a hashmap
-type AdjacencyList<N, W> = HashMap<Rc<N>, Vec<Edge<N, W>>>;
+type AdjacencyList<N, W> = IndexMap<Rc<N>, Vec<Edge<N, W>>>;
 
 /// Represents a weighted edge from a parent node to `to` Node
 #[derive(Debug)]
@@ -66,7 +66,7 @@ impl Default for Graph<u32, i32> {
     /// Undirected graph with nodes encoded as 32 bits unsigned integers and weights as 32 bits integers.
     fn default() -> Self {
         Self {
-            adj_list: HashMap::new(),
+            adj_list: IndexMap::new(),
             directed: false,
         }
     }
@@ -80,7 +80,7 @@ where
 {
     pub fn new(directed: bool) -> Self {
         Self {
-            adj_list: HashMap::new(),
+            adj_list: IndexMap::new(),
             directed,
         }
     }
@@ -154,7 +154,7 @@ where
 
     /// Drop a node and any edge pointing to it.
     pub fn remove_node(&mut self, node: &N) {
-        self.adj_list.remove(node);
+        self.adj_list.swap_remove(node);
 
         // look for occurrences of the node in some edge from another node and drop the edge if found.
         for edges in self.adj_list.values_mut() {
@@ -272,7 +272,7 @@ where
 
     pub fn dijkstra(&self, from: &N, to: &N) -> Option<(Vec<N>, W)> {
         // use an option to mean "not reachable" instead of infinity (as it would require another trait for W)
-        let mut distances: HashMap<&N, Option<W>> = self
+        let mut distances: IndexMap<&N, Option<W>> = self
             .adj_list
             .keys()
             .map(|node| (node.as_ref(), None))
@@ -333,7 +333,7 @@ where
         None
     }
 
-    /// Returns the unique adjacency matrix with nodes ordered (depends on how the type Node implements the trait Ord).
+    /// Returns the unique adjacency matrix with nodes ordered by insertion.
     pub fn adjacency_matrix(&self) -> Option<Vec<Vec<W>>> {
         if self.is_empty() {
             return None;
@@ -341,19 +341,11 @@ where
 
         let n = self.num_nodes();
         let mut out = vec![vec![W::zero(); n]; n];
-        let node_to_index: HashMap<&N, usize> = self
-            .adj_list
-            .keys()
-            .sorted()
-            .enumerate()
-            .map(|(index, node)| (node.as_ref(), index))
-            .collect();
 
-        for (from, edges) in self.adj_list.iter() {
+        for (from_idx, (_, edges)) in self.adj_list.iter().enumerate() {
             for Edge { to, weight } in edges.iter() {
-                let from = *node_to_index.get(from.as_ref()).unwrap();
-                let to = *node_to_index.get(to.as_ref()).unwrap();
-                out[from][to] = *weight;
+                let (to_idx, ..) = self.adj_list.get_full(to.as_ref()).unwrap();
+                out[from_idx][to_idx] = *weight;
             }
         }
 
