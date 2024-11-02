@@ -88,6 +88,8 @@ mod tests {
         assert_eq!(g.num_nodes(), 2);
         assert_eq!(g.num_edges(), 2);
         assert!(g.has_path(node0.as_ref(), node1.as_ref()));
+        assert_eq!(node0.attribute1, 42);
+        assert_eq!(node1.attribute2, 0.0);
     }
 
     #[test]
