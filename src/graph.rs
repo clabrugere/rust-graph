@@ -72,7 +72,8 @@ impl Default for Graph<u32, i32> {
     }
 }
 
-impl<'a, N, W> Graph<N, W>
+// TODO: we can do without the Clone trait
+impl<N, W> Graph<N, W>
 where
     N: Hash + Eq + Ord + Clone + Debug,
     W: Zero + Add + PartialOrd + Copy,
@@ -120,7 +121,7 @@ where
     }
 
     /// Add a new  weighted edge between `from` and `to` nodes. Return an error if the edge already exists.
-    pub fn add_edge(&'a mut self, from: N, to: N, weight: W) -> Result<(Rc<N>, Rc<N>), String> {
+    pub fn add_edge(&mut self, from: N, to: N, weight: W) -> Result<(Rc<N>, Rc<N>), String> {
         // Use Rc to manage shared ownership and avoid move issues with `from` and `to`
         let from = Rc::new(from);
         let to = Rc::new(to);
