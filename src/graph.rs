@@ -97,23 +97,17 @@ where
     }
 
     pub fn num_edges(&self) -> usize {
-        let mut cnt: usize = 0;
-        for edges in self.adj_list.values() {
-            cnt += edges.len()
-        }
-
-        cnt
+        self.adj_list.values().map(Vec::len).sum()
     }
 
     /// Add a new node to the graph. Return an error if the node already exists, otherwise return a Rc to the node
     /// for further usage.  This is useful to avoid expensive copies when N is not a primitive type.
     pub fn add_node(&mut self, node: N) -> Result<Rc<N>, String> {
-        let node = Rc::new(node);
-
         if self.has_node(&node) {
             return Err(format!("Node {:?} already exists", node));
         }
 
+        let node = Rc::new(node);
         self.adj_list.insert(Rc::clone(&node), Vec::new());
 
         Ok(node)
@@ -121,13 +115,13 @@ where
 
     /// Add a new  weighted edge between `from` and `to` nodes. Return an error if the edge already exists.
     pub fn add_edge(&mut self, from: N, to: N, weight: W) -> Result<(Rc<N>, Rc<N>), String> {
-        // Use Rc to manage shared ownership and avoid move issues with `from` and `to`
-        let from = Rc::new(from);
-        let to = Rc::new(to);
-
         if self.has_edge(&from, &to) {
             return Err(format!("Edge from {:?} to {:?} already exists", from, to));
         }
+
+        // Use Rc to manage shared ownership and avoid move issues with `from` and `to`
+        let from = Rc::new(from);
+        let to = Rc::new(to);
 
         self.adj_list.entry(Rc::clone(&from)).or_default();
         self.adj_list.entry(Rc::clone(&to)).or_default();
