@@ -71,10 +71,9 @@ impl Default for Graph<u32, i32> {
     }
 }
 
-// TODO: we can do without the Clone trait
 impl<N, W> Graph<N, W>
 where
-    N: Hash + Eq + Ord + Clone + Debug,
+    N: Hash + Eq + Ord + Debug,
     W: Zero + Add + PartialOrd + Copy,
 {
     pub fn new(directed: bool) -> Self {
@@ -219,12 +218,12 @@ where
 
     /// Return visited nodes in BFS (iterative) order. Nodes returned are copies and not references to graph nodes.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<N>.
-    pub fn dfs(&self, from: &N) -> Option<Vec<N>> {
+    pub fn dfs<'a>(&'a self, from: &'a N) -> Option<Vec<&'a N>> {
         if !self.has_node(from) {
             return None;
         }
 
-        let mut out: Vec<N> = Vec::new();
+        let mut out: Vec<&N> = Vec::new();
         let mut stack = Vec::from([from]);
         let mut visited: HashSet<&N> = HashSet::new();
 
@@ -232,7 +231,7 @@ where
             if !visited.contains(node) {
                 visited.insert(node);
                 stack.extend(self.neighbors(node).unwrap());
-                out.push(node.clone());
+                out.push(node);
             }
         }
 
@@ -241,12 +240,12 @@ where
 
     /// Return visited nodes in BFS order. Nodes returned are copies and not references to graph nodes.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<N>.
-    pub fn bfs(&self, from: &N) -> Option<Vec<N>> {
+    pub fn bfs<'a>(&'a self, from: &'a N) -> Option<Vec<&'a N>> {
         if !self.has_node(from) {
             return None;
         }
 
-        let mut out: Vec<N> = Vec::new();
+        let mut out: Vec<&N> = Vec::new();
         let mut queue = VecDeque::from([from]);
         let mut visited = HashSet::from([from]);
 
@@ -257,13 +256,13 @@ where
                     queue.push_back(neighbor);
                 }
             }
-            out.push(node.clone());
+            out.push(node);
         }
 
         Some(out)
     }
 
-    pub fn dijkstra(&self, from: &N, to: &N) -> Option<(Vec<N>, W)> {
+    pub fn dijkstra<'a>(&'a self, from: &'a N, to: &'a N) -> Option<(Vec<&'a N>, W)> {
         // use an option to mean "not reachable" instead of infinity (as it would require another trait for W)
         let mut distances: IndexMap<&N, Option<W>> = self
             .adj_list
@@ -282,10 +281,10 @@ where
         while let Some((ref cost, node)) = heap.pop() {
             // found the destination, let's build the path and return it
             if node == to {
-                let mut path = vec![to.clone()];
+                let mut path = vec![to];
                 let mut current_node = to;
                 while let Some(&previous_node) = predecessors.get(current_node) {
-                    path.push(previous_node.clone());
+                    path.push(previous_node);
                     current_node = previous_node;
                 }
                 path.reverse();

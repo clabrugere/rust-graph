@@ -287,7 +287,7 @@ mod tests {
         let node = 0;
 
         let result = g.bfs(&node).unwrap();
-        let expected = vec![0, 1, 2, 4, 3, 5, 6];
+        let expected = vec![&0, &1, &2, &4, &3, &5, &6];
 
         assert_eq!(result, expected);
     }
@@ -298,7 +298,7 @@ mod tests {
         let node = 0;
 
         let result = g.dfs(&node).unwrap();
-        let expected = vec![0, 4, 5, 2, 6, 1, 3];
+        let expected = vec![&0, &4, &5, &2, &6, &1, &3];
 
         assert_eq!(result, expected);
     }
@@ -361,7 +361,7 @@ mod tests {
         g.add_edge(4, 5, 1).unwrap();
         let (node0, node2, node3, node5) = (0, 2, 3, 5);
 
-        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![0, 4, 5], 2)));
+        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![&0, &4, &5], 2)));
         assert!(g.dijkstra(&node2, &node3).is_none());
     }
 
@@ -377,7 +377,7 @@ mod tests {
         g.add_edge(4, 5, 1.0).unwrap();
         let (node0, node2, node3, node5) = (0, 2, 3, 5);
 
-        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![0, 4, 5], 2.0)));
+        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![&0, &4, &5], 2.0)));
         assert!(g.dijkstra(&node2, &node3).is_none());
     }
 }
