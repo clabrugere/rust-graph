@@ -15,6 +15,7 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 - Finding the shortest path between two nodes
 - Generating a unique adjacency matrix from sorted nodes
 - Apply a closure `F(Vec<W>) -> W` to a given node outgoing edges for weight aggregation
+- Generate random graph, complete graph and perfect binary tree
 
 ## Design choices
 
@@ -182,3 +183,4 @@ The `add_edge` method returns reference-counted smart pointers (`Rc`) to the cre
 - [x] Edges weights aggregation functions
 - [ ] PageRank, Betweenness Centrality, Closeness Centrality
 - [ ] Get sub-graph based on predicates over the edge weights
+- [x] Graph generators (random, complete, etc.)

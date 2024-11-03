@@ -144,6 +144,41 @@ where
         Ok((from, to))
     }
 
+    pub fn add_edge_from_refs(
+        &mut self,
+        from: &Rc<N>,
+        to: &Rc<N>,
+        weight: W,
+    ) -> Result<(), String> {
+        if self.has_edge(from.as_ref(), to.as_ref()) {
+            return Err(format!("Edge from {:?} to {:?} already exists", from, to));
+        }
+        if !self.has_node(from.as_ref()) {
+            return Err(format!("Source node {:?} doesn't exist", from));
+        }
+        if !self.has_node(to.as_ref()) {
+            return Err(format!("Destination node {:?} doesn't exist", to));
+        }
+
+        if let Some(edge_list) = self.adj_list.get_mut(from.as_ref()) {
+            edge_list.push(Edge {
+                to: Rc::clone(&to),
+                weight,
+            });
+        }
+
+        if !self.directed {
+            if let Some(reverse_edge_list) = self.adj_list.get_mut(to.as_ref()) {
+                reverse_edge_list.push(Edge {
+                    to: Rc::clone(&from),
+                    weight,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Apply a closure over edges between `node` and all its neighbors. This can be useful for message passing logic
     pub fn aggregate_edges<F>(&self, node: &N, f: F) -> Option<W>
     where

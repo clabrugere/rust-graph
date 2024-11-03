@@ -1,4 +1,6 @@
+mod generators;
 mod graph;
+pub use generators::{complete_graph, perfect_binary_tree, random_graph};
 pub use graph::Graph;
 
 #[cfg(test)]
@@ -93,6 +95,54 @@ mod tests {
     }
 
     #[test]
+    fn generate_random_directed_graph() {
+        let g = random_graph(10, 5, true);
+
+        assert_eq!(g.num_nodes(), 10);
+        assert_eq!(g.num_edges(), 5);
+    }
+
+    #[test]
+    fn generate_random_undirected_graph() {
+        let g = random_graph(10, 5, false);
+
+        assert_eq!(g.num_nodes(), 10);
+        assert_eq!(g.num_edges(), 2 * 5);
+    }
+
+    #[test]
+    fn generate_complete_directed_graph() {
+        let g = complete_graph(6, true);
+
+        assert_eq!(g.num_nodes(), 6);
+        assert_eq!(g.num_edges(), 6 * (6 - 1) / 2)
+    }
+
+    #[test]
+    fn generate_complete_undirected_graph() {
+        let g = complete_graph(6, false);
+
+        assert_eq!(g.num_nodes(), 6);
+        assert_eq!(g.num_edges(), 6 * (6 - 1))
+    }
+
+    #[test]
+    fn generate_binary_tree() {
+        let g = perfect_binary_tree(2);
+
+        assert!(g.has_edge(&0, &1));
+        assert!(g.has_edge(&0, &2));
+        assert!(g.has_edge(&1, &3));
+        assert!(g.has_edge(&1, &4));
+        assert!(g.has_edge(&2, &5));
+        assert!(g.has_edge(&2, &6));
+        assert_eq!(g.neighbors(&3).unwrap().len(), 0);
+        assert_eq!(g.neighbors(&4).unwrap().len(), 0);
+        assert_eq!(g.neighbors(&5).unwrap().len(), 0);
+        assert_eq!(g.neighbors(&6).unwrap().len(), 0);
+    }
+
+    #[test]
     fn add_existing_struct_node() {
         let mut g: Graph<Node, i32> = Graph::new(false);
         let node0 = Node::new(String::from("node0"), 42, 1.5);
@@ -183,6 +233,24 @@ mod tests {
 
         let result = g.add_edge(from, to, weight);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn add_new_edges_from_refs() {
+        let mut g = Graph::new(true);
+        let node0 = g.add_node(0).unwrap();
+        let node1 = g.add_node(1).unwrap();
+        let node2 = g.add_node(2).unwrap();
+
+        g.add_edge_from_refs(&node0, &node1, 1).unwrap();
+        g.add_edge_from_refs(&node0, &node2, 2).unwrap();
+        g.add_edge_from_refs(&node1, &node2, 1).unwrap();
+
+        assert_eq!(g.num_edges(), 3, "number of edges");
+        assert_eq!(g.num_nodes(), 3, "number of nodes");
+        assert!(g.has_edge(&node0, &node1));
+        assert!(g.has_edge(&node0, &node2));
+        assert!(g.has_edge(&node1, &node2));
     }
 
     #[test]
