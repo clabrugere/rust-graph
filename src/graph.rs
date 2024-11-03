@@ -144,6 +144,16 @@ where
         Ok((from, to))
     }
 
+    /// Apply a closure over edges between `node` and all its neighbors. This can be useful for message passing logic
+    pub fn aggregate_edges<F>(&self, node: &N, f: F) -> Option<W>
+    where
+        F: Fn(Vec<W>) -> W,
+    {
+        self.adj_list
+            .get(node)
+            .map(|edges| f(edges.iter().map(|edge| edge.weight).collect()))
+    }
+
     /// Drop a node and any edge pointing to it.
     pub fn remove_node(&mut self, node: &N) {
         self.adj_list.swap_remove(node);

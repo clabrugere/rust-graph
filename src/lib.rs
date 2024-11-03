@@ -244,6 +244,14 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_edges() {
+        let g = generate_graph(true);
+        let result = g.aggregate_edges(&0, |nodes| nodes.iter().sum());
+
+        assert_eq!(result, Some(3));
+    }
+
+    #[test]
     fn neighbors() {
         let mut g = Graph::default();
         let (node0, node1, node2, node3, node4) = (0, 1, 2, 3, 4);

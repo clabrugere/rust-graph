@@ -14,6 +14,7 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 - Traversing the graph from a source node in BFS or DFS order
 - Finding the shortest path between two nodes
 - Generating a unique adjacency matrix from sorted nodes
+- Apply a closure `F(Vec<W>) -> W` to a given node outgoing edges for weight aggregation
 
 ## Design choices
 
@@ -178,6 +179,6 @@ The `add_edge` method returns reference-counted smart pointers (`Rc`) to the cre
 - [ ] Heuristic path finding (A*)
 - [ ] Bidirectional search for shortest-path finding
 - [ ] Random walks on graphs (unbiased & biased using edge weights)
-- [ ] Edges weights aggregation functions
+- [x] Edges weights aggregation functions
 - [ ] PageRank, Betweenness Centrality, Closeness Centrality
 - [ ] Get sub-graph based on predicates over the edge weights
