@@ -19,7 +19,7 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 
 ## Design choices
 
-The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node index to a list of edges that of neighbors along with weights. It is implemented using two hashmaps: a first `IndexMap<usize, N>` mapping a unique node index to a node, and a second `HashMap<usize, Vec<Edge<W>>>` mapping the node index to its list of outgoing edges. The `Edge` struct stores a node index and a weight:
+The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node index to a list of edges along with weights. It is implemented using two hashmaps: a first `IndexMap<usize, N>` mapping a unique node index to a node, and a second `HashMap<usize, Vec<Edge<W>>>` mapping the node index to its list of outgoing edges. The `Edge` struct stores a node index and a weight:
 
 ```rust
 struct Edge<W> {
@@ -28,7 +28,7 @@ struct Edge<W> {
 }
 ```
 
-This structure is generic over the weights, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on weight `W` types:
+This structure is generic over the weights and nodes, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on weight `W` and node `N` types:
 
 ```rust
 struct Graph<N, W> {
@@ -61,11 +61,11 @@ where
 
 ### Adjacency list
 
-Instead of using a regular hash map, we use a special implementation `IndexMap` from the `indexmap` crate that provide a nice property: iteration ordering independent of the hashed key but rather based on insertion order. This is especially useful to provide a unique adjacency matrix based on node insertion order. Indeed, using the hash map from the standard library would require to sort keys first to generate a unique matrix per graph. Otherwise, we would only get isomorphic matrices at each invocation of the `adjacency_matrix` method.
+Instead of using a regular hash map, we use a `IndexMap` from the `indexmap` crate that provides a nice property: iteration ordering independent of the hashed key but rather based on insertion order. This is especially useful to provide a unique adjacency matrix based on node insertion order. Indeed, using the hash map from the standard library would require to sort keys first to generate a unique matrix per graph. Otherwise, we would only get isomorphic matrices at each invocation of the `adjacency_matrix` method.
 
 In addition, for adjacency lists to be memory efficient, it's better if we only store references to other nodes in the edge list: otherwise we would end up with a much worse space complexity. The problem is that you can't directly use references to keys as values or you end up with all sorts of ownership issues all around. For example, rust's hash maps own the keys - so the nodes here - but we also need to store references to those as values from other nodes, and so ownership becomes multiple. 
 
-This is not really an issue if we restrict ourself to primitive types, but it could become a problem for nodes that store large amounts of data. One solution I initially found found to circumvent the issue was to use reference-counted smart pointers `Rc` and weak references `Weak` from the standard library. This way we only store nodes one time, and use multiple references for the edges, but it was introducing potential memory leaks and made the implementation mode complex. Instead we use unique indices for each node and use that as pointers to other nodes in the edge list.
+This is not really an issue if we restrict ourself to primitive types, but it could become a problem for nodes that store large amounts of data. One solution I initially found to circumvent the issue was to use reference-counted smart pointers `Rc` and weak references `Weak` from the standard library. This way we only store nodes one time, and use multiple references for the edges. But this solution was introducing potential memory leaks and made the implementation mode complex. Instead we use unique indices for each node and use that as pointers to other nodes in the edge list.
 
 ### Side notes
 
