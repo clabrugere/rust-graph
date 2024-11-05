@@ -19,32 +19,29 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 
 ## Design choices
 
-The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node to a list of edges that store references to neighboring nodes along with weights. This adjacency list is implemented as a hash map, where nodes are the keys and each key's value is a variable-length array of `Edge` structs:
+The core of the library is the `Graph` type, which represents a weighted, directed, or undirected graph. The graph is stored as an adjacency list, mapping each node index to a list of edges that of neighbors along with weights. It is implemented using two hashmaps: a first `IndexMap<usize, N>` mapping a unique node index to a node, and a second `HashMap<usize, Vec<Edge<W>>>` mapping the node index to its list of outgoing edges. The `Edge` struct stores a node index and a weight:
 
 ```rust
-type AdjacencyList<N, W> = IndexMap<Rc<N>, Vec<Edge<N, W>>>;
-
-struct Edge<N, W> {
-    to: Rc<N>,
+struct Edge<W> {
+    to_idx: usize,
     weight: W,
 }
 ```
 
-This structure is generic over both nodes and edge weights, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on node `N` and weight `W` types:
+This structure is generic over the weights, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on weight `W` types:
 
 ```rust
-struct Graph<N, W>
-where
-    N: Eq + Hash,
-{
-    adj_list: AdjacencyList<N, W>,
+struct Graph<N, W> {
+    nodes: IndexMap<usize, N>,
+    edge_list: HashMap<usize, Vec<Edge<W>>>,
     directed: bool,
+    next_node_idx: usize,
 }
 
 impl<N, W> Graph<N, W>
 where
-    N: Hash + Eq + Ord + Clone + Debug,
-    W: Zero + Add + PartialOrd + Copy,
+    N: Ord + Debug,
+    W: Zero + Add + PartialOrd + Copy + Debug,
 {
     ...
 }
@@ -52,14 +49,15 @@ where
 
 ### Nodes
 
-- **Hashing and Equality**: while using a hash map as adjacency list provides $O(1)$ neighbor lookup, it does require that the node type `N` implements the traits `Hash` and `Eq`. Nevertheless, I think it's not too restrictive.
 - **Ordering**: shortest path algorithm is implemented using a binary heap from the standard library whose elements are tuples of `(W, &N)`. Ordering is done on both elements of the tuple if ordering on the first element results in a tie. As a consequence, node type `N` needs to implement the `Ord` trait.
+- **Debug**: to print the struct, we need at least this trait, but ideally we would need to implement `Display`.
 
 ### Weights
 
 - **Addition Identity**: for shortest-path computations (using Dijkstra algorithm), `W` need to support addition with an identity element (a zero element). As a consequence, `W` needs to implement the `Zero` and `Add` traits. Note that the trait `Zero` comes from the external crate `num-traits` but it simply means that `w + W::zero() = w` for any `w` of type `W`.
 - **Partial Ordering**: because we use a binary heap in the Dijkstra algorithm - allowing us to have an efficient priority queue - `W` also need to implement the `PartialOrd` trait. Well, in fact, rust's binary heap requires elements to implement the more restrictive `Ord` trait, but that would prevent us from using floating point numbers as weights, which would be quite limiting! This is because floats can also have a special `nan` value, whose behavior is not really defined when it comes to ordering. So it requires an arbitrary choice: is a `nan` bigger than every number, or smaller when it's not even a number? Rust didn't make any choice, so we have to. To circumvent the issue, we implement a simple generic `NotNan` wrapper and decide that for a graph, `nan` as a weight for an edge between two nodes doesn't make sense and that we will not be encountering that. We can then implement `Ord` by simply unwrapping the value from a partial comparison: if we get a `nan` while comparing two elements of type `W`, the program will panic and terminate.
 - **Copy**: in this implementation, we assume that edge weights remain simple types whose copy is inexpensive and done implicitly when required.
+- **Debug**: for the same reason as above.
 
 ### Adjacency list
 
@@ -67,9 +65,17 @@ Instead of using a regular hash map, we use a special implementation `IndexMap` 
 
 In addition, for adjacency lists to be memory efficient, it's better if we only store references to other nodes in the edge list: otherwise we would end up with a much worse space complexity. The problem is that you can't directly use references to keys as values or you end up with all sorts of ownership issues all around. For example, rust's hash maps own the keys - so the nodes here - but we also need to store references to those as values from other nodes, and so ownership becomes multiple. 
 
-This is not really an issue if we restrict ourself to primitive types, but it could become a problem for nodes that store large amounts of data. One solution I found to circumvent the issue is to use reference-counted smart pointers `Rc` from the standard library. This way we only store nodes one time, and use multiple references for the edges, saving memory!
+This is not really an issue if we restrict ourself to primitive types, but it could become a problem for nodes that store large amounts of data. One solution I initially found found to circumvent the issue was to use reference-counted smart pointers `Rc` and weak references `Weak` from the standard library. This way we only store nodes one time, and use multiple references for the edges, but it was introducing potential memory leaks and made the implementation mode complex. Instead we use unique indices for each node and use that as pointers to other nodes in the edge list.
 
-As a side note, most of the design choices were done along the way. I first started with a rather basic implementation restricted to integers for nodes and edges, mostly to get used to rust syntax and get the basics. At this point, I thought it would be nice to be able to use more complex types for nodes, and allow edges to be floating point numbers. Then I wanted to avoid to have to clone nodes all over the place, because, well, it's not elegant.
+### Side notes
+
+Most of the design choices were done along the way. I first started with a rather basic implementation restricted to integers for nodes and edges, mostly to get used to rust syntax and get the basics. At this point, I thought it would be nice to be able to use more complex types for nodes, and allow edges to be floating point numbers. 
+
+Then I wanted to avoid to have to clone nodes all over the place, because, well, it's not elegant, so I introduced counted references `Rc` over nodes in the `Edge` struct. But because some graph could have nodes referencing each others, I created reference cycles. This is well documented as a bad pattern: counted references are only destroyed when the counter of references drop to zero, which never happen in the case of reference cycles, creating memory leaks.
+
+So I refactored the whole `Graph` implementation to avoid storing references to nodes in edges in a single container, but instead split that in two: one `IndexMap` mapping unique `usize` ids to nodes, and a `HashMap` mapping the same ids to an edge list.
+
+Another limitation of storing the graph in a single hashmap of nodes to edge list was in the hashing of the nodes directly: it required to implement `Eq` and `Hash` traits for the node type `N` but also that required nodes to be immutable (otherwise their hash would change and the hashmap would not be stable). In addition, hashing nodes directly could cause collisions for large graphs. 
 
 ## Prerequisite
 
@@ -97,32 +103,24 @@ To create a new empty graph, defaulting to an undirected `Graph<u32, i32>` with 
 use graph::Graph;
 
 let mut g = Graph::default();
-let (node0, node1, node2) = (0, 1, 2);
+let node0 = 0;
+let node1 = 1;
 
-g.add_edge(node0, node1, 1).unwrap();
-g.add_edge(node0, node2, 2).unwrap();
-g.add_edge(node1, node2, 1).unwrap();
+let node0_idx = g.add_node(node0);
+let node1_idx = g.add_node(node1);
 ```
 
 To create an empty graph with a user defined node type `Node` (you can specify if the graph is directed or not) and add some edges:
 
 ```rust
 use std::cmp::{Eq, Ord, PartialEq};
-use std::collections::HashSet;
-use std::hash::Hash;
 use graph::Graph;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Node {
     id: String,
     attribute1: i32,
     attribute2: f64,
-}
-
-impl Hash for Node {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state)
-    }
 }
 
 impl PartialEq for Node {
@@ -159,22 +157,21 @@ let mut g: Graph<Node, i32> = Graph::new(false);
 let node0 = Node::new(String::from("node0"), 42, 1.5);
 let node1 = Node::new(String::from("node1"), 64, 0.0);
 
-let (node0, node1) = g.add_edge(node0, node1, 1).unwrap();
+let (node0_idx, node1_idx) = g.add_nodes_then_edge(node0, node1, 1);
 ```
 
-The `add_edge` method returns reference-counted smart pointers (`Rc`) to the created nodes, allowing you to use them in subsequent operations.
+The `add_edge` and `add_nodes_then_edge` methods return the unique indices to the created nodes, allowing you to use them in subsequent operations.
 
 ## Improvements
 
 ### Core
-- [x] Methods should always return reference to nodes and not copies (`bfs`, `dfs`, `dijkstra`)
 - [x] Use `IndexMap` instead of `HashMap` for the adjacency list in order to have predictable iteration order based on insertion and thus avoid sorting
 - [ ] Parallel/multi-threaded operations (`bfs`, `dfs`)
 - [ ] Implementation of `Clone` trait on the whole graph
 
 ### Features
 - [ ] Support shortest-path for negative edge weights (Bellman-Ford algorithm)
-- [ ] Insert nodes/edges from iterators
+- [x] Insert nodes
 - [ ] Create graph from file
 - [ ] Serialize/deserialize graphs
 - [ ] Heuristic path finding (A*)

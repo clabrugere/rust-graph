@@ -8,22 +8,15 @@ mod tests {
     #[allow(dead_code)]
     use std::cmp::{Eq, Ord, PartialEq};
     use std::collections::HashSet;
-    use std::hash::Hash;
 
     use super::*;
     use graph::Graph;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     struct Node {
         id: String,
         attribute1: i32,
         attribute2: f64,
-    }
-
-    impl Hash for Node {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.id.hash(state)
-        }
     }
 
     impl PartialEq for Node {
@@ -58,13 +51,22 @@ mod tests {
 
     fn generate_graph(directed: bool) -> Graph<i32, i32> {
         let mut g = Graph::new(directed);
-        g.add_edge(0, 1, 1).unwrap();
-        g.add_edge(0, 2, 1).unwrap();
-        g.add_edge(1, 3, 1).unwrap();
-        g.add_edge(0, 4, 1).unwrap();
-        g.add_edge(1, 5, 1).unwrap();
-        g.add_edge(2, 6, 1).unwrap();
-        g.add_edge(4, 5, 1).unwrap();
+
+        let node0 = g.add_node(0);
+        let node1 = g.add_node(1);
+        let node2 = g.add_node(2);
+        let node3 = g.add_node(3);
+        let node4 = g.add_node(4);
+        let node5 = g.add_node(5);
+        let node6 = g.add_node(6);
+
+        g.add_edge(node0, node1, 1).unwrap();
+        g.add_edge(node0, node2, 1).unwrap();
+        g.add_edge(node1, node3, 1).unwrap();
+        g.add_edge(node0, node4, 1).unwrap();
+        g.add_edge(node1, node5, 1).unwrap();
+        g.add_edge(node2, node6, 1).unwrap();
+        g.add_edge(node4, node5, 1).unwrap();
 
         g
     }
@@ -85,13 +87,23 @@ mod tests {
         let node0 = Node::new(String::from("node0"), 42, 1.5);
         let node1 = Node::new(String::from("node1"), 64, 0.0);
 
-        let (node0, node1) = g.add_edge(node0, node1, 1).unwrap();
+        let (node0, node1) = g.add_nodes_then_edge(node0, node1, 1);
 
         assert_eq!(g.num_nodes(), 2);
         assert_eq!(g.num_edges(), 2);
-        assert!(g.has_path(node0.as_ref(), node1.as_ref()));
-        assert_eq!(node0.attribute1, 42);
-        assert_eq!(node1.attribute2, 0.0);
+        assert!(g.has_path(node0, node1));
+        assert_eq!(g.get_node(node0).unwrap().attribute1, 42);
+        assert_eq!(g.get_node(node1).unwrap().attribute2, 0.0);
+    }
+
+    #[test]
+    fn add_existing_struct_edge() {
+        let mut g: Graph<Node, i32> = Graph::new(false);
+        let node0 = Node::new(String::from("node0"), 42, 1.5);
+        let node1 = Node::new(String::from("node1"), 64, 0.0);
+        let (node0_idx, node1_idx) = g.add_nodes_then_edge(node0, node1, 1);
+
+        assert!(g.add_edge(node0_idx, node1_idx, 1).is_err());
     }
 
     #[test]
@@ -111,16 +123,8 @@ mod tests {
     }
 
     #[test]
-    fn generate_complete_directed_graph() {
-        let g = complete_graph(6, true);
-
-        assert_eq!(g.num_nodes(), 6);
-        assert_eq!(g.num_edges(), 6 * (6 - 1) / 2)
-    }
-
-    #[test]
     fn generate_complete_undirected_graph() {
-        let g = complete_graph(6, false);
+        let g = complete_graph(6);
 
         assert_eq!(g.num_nodes(), 6);
         assert_eq!(g.num_edges(), 6 * (6 - 1))
@@ -130,38 +134,16 @@ mod tests {
     fn generate_binary_tree() {
         let g = perfect_binary_tree(2);
 
-        assert!(g.has_edge(&0, &1));
-        assert!(g.has_edge(&0, &2));
-        assert!(g.has_edge(&1, &3));
-        assert!(g.has_edge(&1, &4));
-        assert!(g.has_edge(&2, &5));
-        assert!(g.has_edge(&2, &6));
-        assert_eq!(g.neighbors(&3).unwrap().len(), 0);
-        assert_eq!(g.neighbors(&4).unwrap().len(), 0);
-        assert_eq!(g.neighbors(&5).unwrap().len(), 0);
-        assert_eq!(g.neighbors(&6).unwrap().len(), 0);
-    }
-
-    #[test]
-    fn add_existing_struct_node() {
-        let mut g: Graph<Node, i32> = Graph::new(false);
-        let node0 = Node::new(String::from("node0"), 42, 1.5);
-        let node0_clone = node0.clone();
-        g.add_node(node0).unwrap();
-
-        assert!(g.add_node(node0_clone).is_err());
-    }
-
-    #[test]
-    fn add_existing_struct_edge() {
-        let mut g: Graph<Node, i32> = Graph::new(false);
-        let node0 = Node::new(String::from("node0"), 42, 1.5);
-        let node1 = Node::new(String::from("node1"), 64, 0.0);
-        let node0_clone = node0.clone();
-        let node1_clone = node1.clone();
-        g.add_edge(node0, node1, 1).unwrap();
-
-        assert!(g.add_edge(node0_clone, node1_clone, 1).is_err());
+        assert!(g.has_edge(0, 1));
+        assert!(g.has_edge(0, 2));
+        assert!(g.has_edge(1, 3));
+        assert!(g.has_edge(1, 4));
+        assert!(g.has_edge(2, 5));
+        assert!(g.has_edge(2, 6));
+        assert_eq!(g.neighbors(3).unwrap().len(), 0);
+        assert_eq!(g.neighbors(4).unwrap().len(), 0);
+        assert_eq!(g.neighbors(5).unwrap().len(), 0);
+        assert_eq!(g.neighbors(6).unwrap().len(), 0);
     }
 
     #[test]
@@ -170,23 +152,21 @@ mod tests {
         let node0 = 0;
         let node1 = 1;
 
-        g.add_node(node0).unwrap();
-        g.add_node(node1).unwrap();
+        let node0 = g.add_node(node0);
+        let node1 = g.add_node(node1);
 
         assert_eq!(g.num_nodes(), 2);
-        assert!(g.has_node(&node0));
-        assert!(g.has_node(&node1));
+        assert!(g.has_node(node0));
+        assert!(g.has_node(node1));
     }
 
     #[test]
-    fn add_existing_nodes() {
+    fn add_nodes_from_iterator() {
         let mut g = Graph::default();
-        let node = 0;
+        let nodes = 0..5;
+        let nodes_inds = g.add_nodes_from_iterator(nodes);
 
-        g.add_node(node).unwrap();
-
-        let result = g.add_node(node);
-        assert!(result.is_err());
+        assert_eq!(nodes_inds, vec![0, 1, 2, 3, 4]);
     }
 
     #[test]
@@ -194,127 +174,105 @@ mod tests {
         let mut g = Graph::default();
         let node0 = 0;
         let node1 = 1;
-        let (from, to, weight) = (node0, node1, 1);
 
-        g.add_node(node0).unwrap();
-        assert!(g.has_node(&node0));
+        let node0 = g.add_node(node0);
+        let node1 = g.add_node(node1);
+        assert!(g.has_node(node0));
+        assert!(g.has_node(node1));
 
-        g.add_edge(from, to, weight).unwrap();
-        assert!(g.has_node(&node1));
-        assert!(g.has_edge(&from, &to));
+        g.add_edge(node0, node1, 1).unwrap();
+        assert!(g.has_node(node1));
+        assert!(g.has_edge(node0, node1));
 
-        g.remove_node(&node1);
-        assert!(!g.has_node(&node1));
-        assert!(g.has_node(&node0));
-        assert!(!g.has_edge(&from, &to))
+        g.remove_node(node1);
+        assert!(!g.has_node(node1));
+        assert!(g.has_node(node0));
+        assert!(!g.has_edge(node0, node1));
     }
 
     #[test]
     fn add_new_edges_directed_graph() {
         let mut g = Graph::new(true);
-        let (node0, node1, node2) = (0, 1, 2);
+        let (node0, node1, node2) = (g.add_node(0), g.add_node(1), g.add_node(2));
 
         g.add_edge(node0, node1, 1).unwrap();
         g.add_edge(node0, node2, 2).unwrap();
         g.add_edge(node1, node2, 1).unwrap();
 
-        assert_eq!(g.num_edges(), 3, "number of edges");
-        assert_eq!(g.num_nodes(), 3, "number of nodes");
-        assert!(g.has_edge(&node0, &node1));
-        assert!(g.has_edge(&node0, &node2));
-        assert!(g.has_edge(&node1, &node2));
+        assert_eq!(g.num_edges(), 3);
+        assert_eq!(g.num_nodes(), 3);
+        assert!(g.has_edge(node0, node1));
+        assert!(g.has_edge(node0, node2));
+        assert!(g.has_edge(node1, node2));
     }
 
     #[test]
     fn add_existing_edges_directed_graph() {
         let mut g = Graph::new(true);
-        let (from, to, weight) = (0, 1, 1);
-        g.add_edge(from, to, weight).unwrap();
+        let (node0, node1) = (g.add_node(0), g.add_node(1));
+        g.add_edge(node0, node1, 1).unwrap();
 
-        let result = g.add_edge(from, to, weight);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn add_new_edges_from_refs() {
-        let mut g = Graph::new(true);
-        let node0 = g.add_node(0).unwrap();
-        let node1 = g.add_node(1).unwrap();
-        let node2 = g.add_node(2).unwrap();
-
-        g.add_edge_from_refs(&node0, &node1, 1).unwrap();
-        g.add_edge_from_refs(&node0, &node2, 2).unwrap();
-        g.add_edge_from_refs(&node1, &node2, 1).unwrap();
-
-        assert_eq!(g.num_edges(), 3, "number of edges");
-        assert_eq!(g.num_nodes(), 3, "number of nodes");
-        assert!(g.has_edge(&node0, &node1));
-        assert!(g.has_edge(&node0, &node2));
-        assert!(g.has_edge(&node1, &node2));
+        assert!(g.add_edge(node0, node1, 2).is_err());
     }
 
     #[test]
     fn remove_edges_directed_graph() {
         let mut g = Graph::new(true);
-        let (from, to, weight) = (0, 1, 1);
+        let (node0, node1) = g.add_nodes_then_edge(0, 1, 1);
 
-        g.add_edge(from, to, weight).unwrap();
-        assert!(g.has_edge(&from, &to));
+        assert!(g.has_edge(node0, node1));
 
-        g.remove_edge(&from, &to);
-        assert!(!g.has_edge(&from, &to));
+        g.remove_edge(node0, node1);
+        assert!(!g.has_edge(node0, node1));
     }
 
     #[test]
     fn add_new_edges_undirected_graph() {
         let mut g = Graph::new(false);
-        let (node0, node1, node2) = (0, 1, 2);
+        let (node0, node1, node2) = (g.add_node(0), g.add_node(1), g.add_node(2));
 
         g.add_edge(node0, node1, 1).unwrap();
         g.add_edge(node0, node2, 2).unwrap();
         g.add_edge(node1, node2, 1).unwrap();
 
-        assert_eq!(g.num_edges(), 6, "number of edges");
-        assert_eq!(g.num_nodes(), 3, "number of nodes");
-        assert!(g.has_edge(&node0, &node1));
-        assert!(g.has_edge(&node1, &node0));
-        assert!(g.has_edge(&node0, &node2));
-        assert!(g.has_edge(&node2, &node0));
-        assert!(g.has_edge(&node1, &node2));
-        assert!(g.has_edge(&node2, &node1));
+        assert_eq!(g.num_edges(), 6);
+        assert_eq!(g.num_nodes(), 3);
+        assert!(g.has_edge(node0, node1));
+        assert!(g.has_edge(node1, node0));
+        assert!(g.has_edge(node0, node2));
+        assert!(g.has_edge(node2, node0));
+        assert!(g.has_edge(node1, node2));
+        assert!(g.has_edge(node2, node1));
     }
 
     #[test]
     fn add_existing_edges_undirected_graph() {
         let mut g = Graph::new(false);
-        let (from, to, weight) = (0, 1, 1);
-        g.add_edge(from, to, weight).unwrap();
+        let (node0, node1) = (g.add_node(0), g.add_node(1));
+        g.add_edge(node0, node1, 1).unwrap();
 
-        let res = g.add_edge(from, to, weight);
-        assert!(res.is_err());
-
-        let res = g.add_edge(to, from, weight);
-        assert!(res.is_err());
+        assert!(g.add_edge(node0, node1, 2).is_err());
+        assert!(g.add_edge(node1, node0, 2).is_err());
     }
 
     #[test]
     fn remove_edges_undirected_graph() {
         let mut g = Graph::new(false);
-        let (from, to, weight) = (0, 1, 1);
+        let (node0, node1) = (g.add_node(0), g.add_node(1));
 
-        g.add_edge(from, to, weight).unwrap();
-        assert!(g.has_edge(&from, &to));
-        assert!(g.has_edge(&to, &from));
+        g.add_edge(node0, node1, 1).unwrap();
+        assert!(g.has_edge(node0, node1));
+        assert!(g.has_edge(node1, node0));
 
-        g.remove_edge(&from, &to);
-        assert!(!g.has_edge(&from, &to));
-        assert!(!g.has_edge(&to, &from));
+        g.remove_edge(node0, node1);
+        assert!(!g.has_edge(node0, node1));
+        assert!(!g.has_edge(node1, node0));
     }
 
     #[test]
     fn aggregate_edges() {
         let g = generate_graph(true);
-        let result = g.aggregate_edges(&0, |nodes| nodes.iter().sum());
+        let result = g.aggregate_edges(0, |nodes| nodes.iter().sum());
 
         assert_eq!(result, Some(3));
     }
@@ -322,47 +280,54 @@ mod tests {
     #[test]
     fn neighbors() {
         let mut g = Graph::default();
-        let (node0, node1, node2, node3, node4) = (0, 1, 2, 3, 4);
+        let (node0, node1, node2, node3) =
+            (g.add_node(0), g.add_node(1), g.add_node(2), g.add_node(3));
         g.add_edge(node0, node1, 1).unwrap();
         g.add_edge(node0, node2, 1).unwrap();
-        g.add_node(node3).unwrap();
 
-        assert_eq!(g.neighbors(&node0).unwrap().len(), 2);
-        assert_eq!(g.neighbors(&node3).unwrap().len(), 0);
-        assert!(g.neighbors(&node4).is_none());
+        assert_eq!(g.neighbors(node0).unwrap().len(), 2);
+        assert_eq!(g.neighbors(node3).unwrap().len(), 0);
+        assert!(g.neighbors(4).is_none());
+    }
+
+    #[test]
+    fn get_node() {
+        let mut g = Graph::default();
+        let (node0, node1) = (g.add_node(0), g.add_node(1));
+
+        assert_eq!(g.get_node(node0), Some(&0));
+        assert_eq!(g.get_node(node1), Some(&1));
     }
 
     #[test]
     fn get_nodes() {
         let mut g = Graph::default();
-        let (node0, node1) = (0, 1);
-        g.add_node(node0).unwrap();
-        g.add_node(node1).unwrap();
+        g.add_node(0);
+        g.add_node(1);
 
-        let result = HashSet::from_iter(g.get_nodes());
-        let expected = HashSet::from([&node0, &node1]);
+        let result: HashSet<&u32> = HashSet::from_iter(g.get_nodes());
+        let expected = HashSet::from([&0_u32, &1_u32]);
         assert_eq!(result, expected);
     }
 
     #[test]
     fn degree() {
         let mut g = Graph::default();
-        let (node0, node1, node2, node3) = (0, 1, 2, 3);
+        let (node0, node1, node2, node3) =
+            (g.add_node(0), g.add_node(1), g.add_node(2), g.add_node(3));
         g.add_edge(node0, node1, 1).unwrap();
         g.add_edge(node0, node2, 1).unwrap();
-        g.add_node(node3).unwrap();
 
-        assert_eq!(g.degree(&node0).unwrap(), 2);
-        assert_eq!(g.degree(&node1).unwrap(), 1);
-        assert_eq!(g.degree(&node3).unwrap(), 0);
+        assert_eq!(g.degree(node0).unwrap(), 2);
+        assert_eq!(g.degree(node1).unwrap(), 1);
+        assert_eq!(g.degree(node3).unwrap(), 0);
     }
 
     #[test]
     fn bfs() {
         let g = generate_graph(true);
-        let node = 0;
 
-        let result = g.bfs(&node).unwrap();
+        let result = g.bfs(0).unwrap();
         let expected = vec![&0, &1, &2, &4, &3, &5, &6];
 
         assert_eq!(result, expected);
@@ -371,9 +336,8 @@ mod tests {
     #[test]
     fn dfs() {
         let g = generate_graph(true);
-        let node = 0;
 
-        let result = g.dfs(&node).unwrap();
+        let result = g.dfs(0).unwrap();
         let expected = vec![&0, &4, &5, &2, &6, &1, &3];
 
         assert_eq!(result, expected);
@@ -419,41 +383,15 @@ mod tests {
     fn has_path() {
         let g = generate_graph(true);
 
-        let (node0, node2, node3, node5) = (0, 2, 3, 5);
-
-        assert!(g.has_path(&node0, &node3));
-        assert!(!g.has_path(&node2, &node5));
+        assert!(g.has_path(0, 3));
+        assert!(!g.has_path(2, 5));
     }
 
     #[test]
     fn dijkstra_integer_weights() {
-        let mut g = Graph::new(true);
-        g.add_edge(0, 1, 1).unwrap();
-        g.add_edge(0, 2, 1).unwrap();
-        g.add_edge(1, 3, 1).unwrap();
-        g.add_edge(0, 4, 1).unwrap();
-        g.add_edge(1, 5, 3).unwrap();
-        g.add_edge(2, 6, 1).unwrap();
-        g.add_edge(4, 5, 1).unwrap();
-        let (node0, node2, node3, node5) = (0, 2, 3, 5);
+        let g = generate_graph(true);
 
-        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![&0, &4, &5], 2)));
-        assert!(g.dijkstra(&node2, &node3).is_none());
-    }
-
-    #[test]
-    fn dijkstra_float_weights() {
-        let mut g = Graph::new(true);
-        g.add_edge(0, 1, 1.0).unwrap();
-        g.add_edge(0, 2, 1.0).unwrap();
-        g.add_edge(1, 3, 1.0).unwrap();
-        g.add_edge(0, 4, 1.0).unwrap();
-        g.add_edge(1, 5, 3.0).unwrap();
-        g.add_edge(2, 6, 1.0).unwrap();
-        g.add_edge(4, 5, 1.0).unwrap();
-        let (node0, node2, node3, node5) = (0, 2, 3, 5);
-
-        assert_eq!(g.dijkstra(&node0, &node5), Some((vec![&0, &4, &5], 2.0)));
-        assert!(g.dijkstra(&node2, &node3).is_none());
+        assert_eq!(g.dijkstra(0, 5), Some((vec![&0, &4, &5], 2)));
+        assert!(g.dijkstra(2, 3).is_none());
     }
 }
