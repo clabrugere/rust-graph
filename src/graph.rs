@@ -266,10 +266,21 @@ where
 
         Some(out)
     }
+}
 
+pub trait Traverse<N, W> {
+    fn dfs(&self, from_idx: usize) -> Option<Vec<&N>>;
+    fn bfs(&self, from_idx: usize) -> Option<Vec<&N>>;
+}
+
+impl<N, W> Traverse<N, W> for Graph<N, W>
+where
+    N: Debug,
+    W: Zero + Copy + Debug,
+{
     /// Return references to visited nodes in BFS (iterative) order.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<&N>.
-    pub fn traverse_dfs(&self, from_idx: usize) -> Option<Vec<&N>> {
+    fn dfs(&self, from_idx: usize) -> Option<Vec<&N>> {
         if !self.has_node(from_idx) {
             return None;
         }
@@ -292,7 +303,7 @@ where
 
     /// Return references to visited nodes in BFS order.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<N>.
-    pub fn traverse_bfs(&self, from_idx: usize) -> Option<Vec<&N>> {
+    fn bfs(&self, from_idx: usize) -> Option<Vec<&N>> {
         if !self.has_node(from_idx) {
             return None;
         }

@@ -1,7 +1,7 @@
 mod generators;
 mod graph;
 pub use generators::{complete_graph, perfect_binary_tree, random_graph};
-pub use graph::{Graph, RandomWalk, ShortestPath};
+pub use graph::{Graph, RandomWalk, ShortestPath, Traverse};
 
 #[cfg(test)]
 mod tests {
@@ -325,7 +325,7 @@ mod tests {
     fn bfs() {
         let g = generate_graph(true);
 
-        let result = g.traverse_bfs(0).unwrap();
+        let result = g.bfs(0).unwrap();
         let expected = vec![&0, &1, &2, &4, &3, &5, &6];
 
         assert_eq!(result, expected);
@@ -335,7 +335,7 @@ mod tests {
     fn dfs() {
         let g = generate_graph(true);
 
-        let result = g.traverse_dfs(0).unwrap();
+        let result = g.dfs(0).unwrap();
         let expected = vec![&0, &4, &5, &2, &6, &1, &3];
 
         assert_eq!(result, expected);
