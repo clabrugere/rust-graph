@@ -16,6 +16,7 @@ This is a pet project I'm developing to learn Rust. It’s a small library for c
 - Generating a unique adjacency matrix from sorted nodes
 - Apply a closure `F(Vec<W>) -> W` to a given node outgoing edges for weight aggregation
 - Generate random graph, complete graph and perfect binary tree
+- Random walks (unbiased/biased) on the graph from a starting node
 
 ## Design choices
 
@@ -28,7 +29,7 @@ struct Edge<W> {
 }
 ```
 
-This structure is generic over the weights and nodes, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on weight `W` and node `N` types:
+Ths `Graph` type is generic over the weights and nodes, allowing it to work with a wide range of types. To ensure efficiency and functionality, certain constraints (traits) are placed on weight `W` and node `N` types:
 
 ```rust
 struct Graph<N, W> {
@@ -40,22 +41,25 @@ struct Graph<N, W> {
 
 impl<N, W> Graph<N, W>
 where
-    N: Ord + Debug,
-    W: Zero + Add + PartialOrd + Copy + Debug,
+    N: Debug,
+    W: Zero + Copy + Debug,
 {
     ...
 }
 ```
 
+While the core implementation is quite permissive on `N` and `W` types, we implement two additional traits `ShortestPath` and `RandomWalk` for more specific algorithms that require other traits, due to some specific data structures we use for those.
+
 ### Nodes
 
-- **Ordering**: shortest path algorithm is implemented using a binary heap from the standard library whose elements are tuples of `(W, &N)`. Ordering is done on both elements of the tuple if ordering on the first element results in a tie. As a consequence, node type `N` needs to implement the `Ord` trait.
 - **Debug**: to print the struct, we need at least this trait, but ideally we would need to implement `Display`.
 
 ### Weights
-
-- **Addition Identity**: for shortest-path computations (using Dijkstra algorithm), `W` need to support addition with an identity element (a zero element). As a consequence, `W` needs to implement the `Zero` and `Add` traits. Note that the trait `Zero` comes from the external crate `num-traits` but it simply means that `w + W::zero() = w` for any `w` of type `W`.
+- **Default**: to provide default value to struct, mainly for the `RandomWalk` trait that uses `choose_weighted` method from `rand`. It is equivalent to `Zero` trait in our use case, so we could probably get rid of `Zero`, but I prefer to keep as it is more explicit for some methods where we think about identity element for addition.
+- **Addition Identity**: for shortest-path computations (using Dijkstra algorithm), `W` need to support addition with an identity element (a zero element). As a consequence, `W` needs to implement the `Zero` and `Add` traits. Note that the trait `Zero` comes from the external crate `num-traits` but it simply means that `w + W::zero() = w` for any `w` of type `W`. Moreover, we require `AddAssign` instead of `Add` simply to allow for `x += y` syntax.
+- **Multiplication Identity**: for unbiased random walk, we use the identity element `W::one()` from the trait `One` to get equiprobable sampling of neighboring nodes.
 - **Partial Ordering**: because we use a binary heap in the Dijkstra algorithm - allowing us to have an efficient priority queue - `W` also need to implement the `PartialOrd` trait. Well, in fact, rust's binary heap requires elements to implement the more restrictive `Ord` trait, but that would prevent us from using floating point numbers as weights, which would be quite limiting! This is because floats can also have a special `nan` value, whose behavior is not really defined when it comes to ordering. So it requires an arbitrary choice: is a `nan` bigger than every number, or smaller when it's not even a number? Rust didn't make any choice, so we have to. To circumvent the issue, we implement a simple generic `NotNan` wrapper and decide that for a graph, `nan` as a weight for an edge between two nodes doesn't make sense and that we will not be encountering that. We can then implement `Ord` by simply unwrapping the value from a partial comparison: if we get a `nan` while comparing two elements of type `W`, the program will panic and terminate.
+- **Sampling**: `SampleUniform` trait is required by `rand` crate to sample from collections.
 - **Copy**: in this implementation, we assume that edge weights remain simple types whose copy is inexpensive and done implicitly when required.
 - **Debug**: for the same reason as above.
 
@@ -76,6 +80,8 @@ Then I wanted to avoid to have to clone nodes all over the place, because, well,
 So I refactored the whole `Graph` implementation to avoid storing references to nodes in edges in a single container, but instead split that in two: one `IndexMap` mapping unique `usize` ids to nodes, and a `HashMap` mapping the same ids to an edge list.
 
 Another limitation of storing the graph in a single hashmap of nodes to edge list was in the hashing of the nodes directly: it required to implement `Eq` and `Hash` traits for the node type `N` but also that required nodes to be immutable (otherwise their hash would change and the hashmap would not be stable). In addition, hashing nodes directly could cause collisions for large graphs. 
+
+On the code structure, I initially put everything under the same `Graph` implementation. But as I started to add more specific algorithms that required additional traits, I started to split it into traits. This allow to have a general no-too-restrictive base implementation, augmented with specific stuff that might not be useful for every use case and that require more constraints on our generics only if we need to use them.
 
 ## Prerequisite
 
@@ -176,7 +182,7 @@ The `add_edge` and `add_nodes_then_edge` methods return the unique indices to th
 - [ ] Serialize/deserialize graphs
 - [ ] Heuristic path finding (A*)
 - [ ] Bidirectional search for shortest-path finding
-- [ ] Random walks on graphs (unbiased & biased using edge weights)
+- [x] Random walks on graphs (unbiased & biased using edge weights)
 - [x] Edges weights aggregation functions
 - [ ] PageRank, Betweenness Centrality, Closeness Centrality
 - [ ] Get sub-graph based on predicates over the edge weights

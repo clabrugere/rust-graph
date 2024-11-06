@@ -1,16 +1,14 @@
 mod generators;
 mod graph;
 pub use generators::{complete_graph, perfect_binary_tree, random_graph};
-pub use graph::Graph;
+pub use graph::{Graph, RandomWalk, ShortestPath};
 
 #[cfg(test)]
 mod tests {
     #[allow(dead_code)]
+    use super::*;
     use std::cmp::{Eq, Ord, PartialEq};
     use std::collections::HashSet;
-
-    use super::*;
-    use graph::Graph;
 
     #[derive(Debug)]
     struct Node {
@@ -327,7 +325,7 @@ mod tests {
     fn bfs() {
         let g = generate_graph(true);
 
-        let result = g.bfs(0).unwrap();
+        let result = g.traverse_bfs(0).unwrap();
         let expected = vec![&0, &1, &2, &4, &3, &5, &6];
 
         assert_eq!(result, expected);
@@ -337,7 +335,7 @@ mod tests {
     fn dfs() {
         let g = generate_graph(true);
 
-        let result = g.dfs(0).unwrap();
+        let result = g.traverse_dfs(0).unwrap();
         let expected = vec![&0, &4, &5, &2, &6, &1, &3];
 
         assert_eq!(result, expected);
@@ -393,5 +391,23 @@ mod tests {
 
         assert_eq!(g.dijkstra(0, 5), Some((vec![&0, &4, &5], 2)));
         assert!(g.dijkstra(2, 3).is_none());
+    }
+
+    #[test]
+    fn unbiased_random_walk() {
+        let g = complete_graph(20);
+
+        assert!(g.random_walk(0, 5, false).is_some());
+        assert_eq!(g.random_walk(0, 5, false).unwrap().len(), 5);
+    }
+
+    #[test]
+    fn biased_random_walk() {
+        let g = complete_graph(20);
+
+        println!("{:?}", i32::default());
+
+        assert!(g.random_walk(0, 5, true).is_some());
+        assert_eq!(g.random_walk(0, 5, true).unwrap().len(), 5);
     }
 }

@@ -1,9 +1,11 @@
 use indexmap::IndexMap;
-use num_traits::Zero;
+use num_traits::{One, Zero};
+use rand::distributions::uniform::SampleUniform;
+use rand::seq::SliceRandom;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
-use std::ops::Add;
+use std::ops::AddAssign;
 
 // We use this wrapper over W to implement Ord from types that only implement PartialOrd. We simply assume that we
 // it doesn't make sense to have edges with nan weights so we will panic if we encounter this while trying to do a
@@ -45,7 +47,7 @@ fn _remove_edge<W>(edge_list: &mut HashMap<usize, Vec<Edge<W>>>, from_idx: usize
     // Otherwise we would need to use edges.retain(|edge| edge.to != to)
     // We first get a mutable reference of the edges for `from` node and map over it if the node exists.
     // We then look for the index of the edge we're looking fore and remove it if we find it.
-    edge_list.entry(from_idx).and_modify(|edges| {
+    edge_list.get_mut(&from_idx).map(|edges| {
         if let Some(index) = edges.iter().position(|edge| edge.to_idx == to_idx) {
             edges.swap_remove(index);
         }
@@ -78,8 +80,8 @@ impl Default for Graph<u32, i32> {
 
 impl<N, W> Graph<N, W>
 where
-    N: Ord + Debug,
-    W: Zero + Add + PartialOrd + Copy + Debug,
+    N: Debug,
+    W: Zero + Copy + Debug,
 {
     pub fn new(directed: bool) -> Self {
         Self {
@@ -209,10 +211,14 @@ where
         self.edge_list.get(&node_idx).map(|edges| edges.len())
     }
 
+    /// Return reference to the list of outgoing edges from a node. Return None if the node is not in the graph.
+    fn outgoing_edges(&self, node_idx: &usize) -> Option<&Vec<Edge<W>>> {
+        self.edge_list.get(node_idx)
+    }
+
     /// Return indices of all neighbors of `nodes`. Return None if the node is not in the graph.
     pub fn neighbors_inds(&self, node_idx: usize) -> Option<Vec<usize>> {
-        self.edge_list
-            .get(&node_idx)
+        self.outgoing_edges(&node_idx)
             .map(|edges| edges.iter().map(|edge| edge.to_idx).collect())
     }
 
@@ -232,8 +238,7 @@ where
         // then we iterate over the edges corresponding to the node if we got Some(edges) until we find the edge
         // if we find it, we extract the weight on Some(edge) and flatten the nested options
         // otherwise returns None
-        self.edge_list
-            .get(&from_idx)
+        self.outgoing_edges(&from_idx)
             .map(|edges| {
                 edges
                     .iter()
@@ -243,14 +248,28 @@ where
             .flatten()
     }
 
-    /// Check if a path exists between two nodes
-    pub fn has_path(&self, from_idx: usize, to_idx: usize) -> bool {
-        self.dijkstra(from_idx, to_idx).is_some()
+    /// Returns the unique adjacency matrix with nodes ordered by insertion.
+    pub fn adjacency_matrix(&self) -> Option<Vec<Vec<W>>> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let n = self.num_nodes();
+        let mut out = vec![vec![W::zero(); n]; n];
+
+        for (row_idx, (from_idx, _)) in self.nodes.iter().enumerate() {
+            for Edge { to_idx, weight } in self.edge_list.get(&from_idx).unwrap() {
+                let (col_idx, ..) = self.nodes.get_full(to_idx).unwrap();
+                out[row_idx][col_idx] = *weight;
+            }
+        }
+
+        Some(out)
     }
 
     /// Return references to visited nodes in BFS (iterative) order.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<&N>.
-    pub fn dfs(&self, from_idx: usize) -> Option<Vec<&N>> {
+    pub fn traverse_dfs(&self, from_idx: usize) -> Option<Vec<&N>> {
         if !self.has_node(from_idx) {
             return None;
         }
@@ -273,7 +292,7 @@ where
 
     /// Return references to visited nodes in BFS order.
     /// If the node `from` is not in the graph, returns an empty option, otherwise returns a Vec<N>.
-    pub fn bfs(&self, from_idx: usize) -> Option<Vec<&N>> {
+    pub fn traverse_bfs(&self, from_idx: usize) -> Option<Vec<&N>> {
         if !self.has_node(from_idx) {
             return None;
         }
@@ -294,8 +313,24 @@ where
 
         Some(out)
     }
+}
 
-    pub fn dijkstra(&self, from_idx: usize, to_idx: usize) -> Option<(Vec<&N>, W)> {
+pub trait ShortestPath<N, W> {
+    fn has_path(&self, from_idx: usize, to_idx: usize) -> bool;
+    fn dijkstra(&self, from_idx: usize, to_idx: usize) -> Option<(Vec<&N>, W)>;
+}
+
+impl<N, W> ShortestPath<N, W> for Graph<N, W>
+where
+    W: Zero + for<'a> AddAssign<&'a W> + PartialOrd + Copy,
+{
+    /// Check if a path exists between two nodes
+    fn has_path(&self, from_idx: usize, to_idx: usize) -> bool {
+        self.dijkstra(from_idx, to_idx).is_some()
+    }
+
+    /// Return the shorted path between two nodes using Dijkstra algorithm. Edge weights must be positive.
+    fn dijkstra(&self, from_idx: usize, to_idx: usize) -> Option<(Vec<&N>, W)> {
         // use an option to mean "not reachable" instead of infinity (as it would require another trait for W)
         let mut distances: IndexMap<&usize, Option<W>> =
             self.nodes.keys().map(|node| (node, None)).collect();
@@ -354,23 +389,51 @@ where
 
         None
     }
+}
 
-    /// Returns the unique adjacency matrix with nodes ordered by insertion.
-    pub fn adjacency_matrix(&self) -> Option<Vec<Vec<W>>> {
-        if self.is_empty() {
+pub trait RandomWalk<N, W> {
+    fn random_walk(
+        &self,
+        starting_node_idx: usize,
+        num_steps: usize,
+        biased: bool,
+    ) -> Option<Vec<&N>>;
+}
+
+impl<N, W> RandomWalk<N, W> for Graph<N, W>
+where
+    N: Debug,
+    W: Default + Zero + One + for<'a> AddAssign<&'a W> + PartialOrd + SampleUniform + Copy + Debug,
+{
+    /// Return references of nodes by randomly traversing the graph for `num_steps`, from a starting node. The walk is
+    /// either unbiased (each neighbor has the same probabilities of being sampled) or biased (transition probabilities
+    /// are proportional to the edges weights).
+    /// Note that if a node has no neighbors, the walk will be stuck there until we reach the desired number of steps.
+    fn random_walk(
+        &self,
+        starting_node_idx: usize,
+        num_steps: usize,
+        biased: bool,
+    ) -> Option<Vec<&N>> {
+        if !self.has_node(starting_node_idx) {
             return None;
         }
 
-        let n = self.num_nodes();
-        let mut out = vec![vec![W::zero(); n]; n];
+        let mut rng = rand::thread_rng();
+        let mut out: Vec<&N> = Vec::new();
+        let mut current_node_idx = starting_node_idx;
 
-        for (row_idx, (from_idx, _)) in self.nodes.iter().enumerate() {
-            for Edge { to_idx, weight } in self.edge_list.get(&from_idx).unwrap() {
-                let (col_idx, ..) = self.nodes.get_full(to_idx).unwrap();
-                out[row_idx][col_idx] = *weight;
+        for _ in 0..num_steps {
+            out.push(self.get_node(current_node_idx).unwrap());
+
+            if let Ok(edge) = self
+                .outgoing_edges(&current_node_idx)
+                .unwrap()
+                .choose_weighted(&mut rng, |edge| if biased { edge.weight } else { W::one() })
+            {
+                current_node_idx = edge.to_idx;
             }
         }
-
         Some(out)
     }
 }

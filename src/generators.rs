@@ -57,8 +57,8 @@ pub fn complete_graph(num_nodes: usize) -> Graph<u32, f64> {
     g
 }
 
-pub fn perfect_binary_tree(depth: usize) -> Graph<u32, f64> {
-    let mut g: Graph<u32, f64> = Graph::new(true);
+pub fn perfect_binary_tree(depth: usize) -> Graph<u32, i32> {
+    let mut g: Graph<u32, i32> = Graph::new(true);
 
     let root = g.add_node(0);
     let mut queue = VecDeque::from([root]);
@@ -77,8 +77,8 @@ pub fn perfect_binary_tree(depth: usize) -> Graph<u32, f64> {
             let left_child = g.add_node(next_node);
             let right_child = g.add_node(next_node + 1);
 
-            g.add_edge(parent, left_child, 1.0).unwrap();
-            g.add_edge(parent, right_child, 1.0).unwrap();
+            g.add_edge(parent, left_child, 1).unwrap();
+            g.add_edge(parent, right_child, 1).unwrap();
 
             queue.push_back(left_child);
             queue.push_back(right_child);
