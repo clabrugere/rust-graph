@@ -1,7 +1,9 @@
 use indexmap::IndexMap;
 use num_traits::{One, Zero};
 use rand::distributions::uniform::SampleUniform;
+use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
@@ -206,11 +208,6 @@ where
         self.nodes.values().collect()
     }
 
-    /// Return the number of outgoing edges from a given node. Return None if the node is not in the graph.
-    pub fn degree(&self, node_idx: usize) -> Option<usize> {
-        self.edge_list.get(&node_idx).map(|edges| edges.len())
-    }
-
     /// Return reference to the list of outgoing edges from a node. Return None if the node is not in the graph.
     fn outgoing_edges(&self, node_idx: &usize) -> Option<&Vec<Edge<W>>> {
         self.edge_list.get(node_idx)
@@ -408,6 +405,7 @@ pub trait RandomWalk<N, W> {
         starting_node_idx: usize,
         num_steps: usize,
         biased: bool,
+        seed: u64,
     ) -> Option<Vec<&N>>;
 }
 
@@ -425,12 +423,13 @@ where
         starting_node_idx: usize,
         num_steps: usize,
         biased: bool,
+        seed: u64,
     ) -> Option<Vec<&N>> {
         if !self.has_node(starting_node_idx) {
             return None;
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(seed);
         let mut out: Vec<&N> = Vec::new();
         let mut current_node_idx = starting_node_idx;
 
@@ -446,5 +445,36 @@ where
             }
         }
         Some(out)
+    }
+}
+
+pub trait Centrality<N, W> {
+    fn in_degree(&self, node_idx: usize) -> Option<usize>;
+    fn out_degree(&self, node_idx: usize) -> Option<usize>;
+}
+
+impl<N, W> Centrality<N, W> for Graph<N, W>
+where
+    N: Debug,
+    W: Zero + Copy + Debug,
+{
+    /// Return the number of ingoing edges from a given node. Return None if the node is not in the graph
+    fn in_degree(&self, node_idx: usize) -> Option<usize> {
+        if !self.has_node(node_idx) {
+            return None;
+        }
+
+        let edge_count: usize = self
+            .edge_list
+            .values()
+            .map(|edges| edges.iter().filter(|edge| edge.to_idx == node_idx).count())
+            .sum();
+
+        Some(edge_count)
+    }
+
+    /// Return the number of outgoing edges from a given node. Return None if the node is not in the graph.
+    fn out_degree(&self, node_idx: usize) -> Option<usize> {
+        self.edge_list.get(&node_idx).map(|edges| edges.len())
     }
 }

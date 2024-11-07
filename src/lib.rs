@@ -1,14 +1,19 @@
-mod generators;
-mod graph;
-pub use generators::{complete_graph, perfect_binary_tree, random_graph};
-pub use graph::{Graph, RandomWalk, ShortestPath, Traverse};
+pub mod generators;
+pub mod graph;
+
+pub mod prelude {
+    pub use crate::graph::{Centrality, Graph, RandomWalk, ShortestPath, Traverse};
+}
 
 #[cfg(test)]
 mod tests {
     #[allow(dead_code)]
-    use super::*;
+    use crate::generators::{complete_graph, perfect_binary_tree, random_graph};
+    use crate::graph::{Centrality, Graph, RandomWalk, ShortestPath, Traverse};
     use std::cmp::{Eq, Ord, PartialEq};
     use std::collections::HashSet;
+
+    const SEED: u64 = 42;
 
     #[derive(Debug)]
     struct Node {
@@ -102,46 +107,6 @@ mod tests {
         let (node0_idx, node1_idx) = g.add_nodes_then_edge(node0, node1, 1);
 
         assert!(g.add_edge(node0_idx, node1_idx, 1).is_err());
-    }
-
-    #[test]
-    fn generate_random_directed_graph() {
-        let g = random_graph(10, 5, true);
-
-        assert_eq!(g.num_nodes(), 10);
-        assert_eq!(g.num_edges(), 5);
-    }
-
-    #[test]
-    fn generate_random_undirected_graph() {
-        let g = random_graph(10, 5, false);
-
-        assert_eq!(g.num_nodes(), 10);
-        assert_eq!(g.num_edges(), 2 * 5);
-    }
-
-    #[test]
-    fn generate_complete_undirected_graph() {
-        let g = complete_graph(6);
-
-        assert_eq!(g.num_nodes(), 6);
-        assert_eq!(g.num_edges(), 6 * (6 - 1))
-    }
-
-    #[test]
-    fn generate_binary_tree() {
-        let g = perfect_binary_tree(2);
-
-        assert!(g.has_edge(0, 1));
-        assert!(g.has_edge(0, 2));
-        assert!(g.has_edge(1, 3));
-        assert!(g.has_edge(1, 4));
-        assert!(g.has_edge(2, 5));
-        assert!(g.has_edge(2, 6));
-        assert_eq!(g.neighbors(3).unwrap().len(), 0);
-        assert_eq!(g.neighbors(4).unwrap().len(), 0);
-        assert_eq!(g.neighbors(5).unwrap().len(), 0);
-        assert_eq!(g.neighbors(6).unwrap().len(), 0);
     }
 
     #[test]
@@ -309,39 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn degree() {
-        let mut g = Graph::default();
-        let (node0, node1, node2, node3) =
-            (g.add_node(0), g.add_node(1), g.add_node(2), g.add_node(3));
-        g.add_edge(node0, node1, 1).unwrap();
-        g.add_edge(node0, node2, 1).unwrap();
-
-        assert_eq!(g.degree(node0).unwrap(), 2);
-        assert_eq!(g.degree(node1).unwrap(), 1);
-        assert_eq!(g.degree(node3).unwrap(), 0);
-    }
-
-    #[test]
-    fn bfs() {
-        let g = generate_graph(true);
-
-        let result = g.bfs(0).unwrap();
-        let expected = vec![&0, &1, &2, &4, &3, &5, &6];
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn dfs() {
-        let g = generate_graph(true);
-
-        let result = g.dfs(0).unwrap();
-        let expected = vec![&0, &4, &5, &2, &6, &1, &3];
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
     fn adjacency_matrix_undirected() {
         let g = generate_graph(false);
 
@@ -377,6 +309,28 @@ mod tests {
         assert_eq!(result, expected);
     }
 
+    // traverse trait
+    #[test]
+    fn bfs() {
+        let g = generate_graph(true);
+
+        let result = g.bfs(0).unwrap();
+        let expected = vec![&0, &1, &2, &4, &3, &5, &6];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dfs() {
+        let g = generate_graph(true);
+
+        let result = g.dfs(0).unwrap();
+        let expected = vec![&0, &4, &5, &2, &6, &1, &3];
+
+        assert_eq!(result, expected);
+    }
+
+    // shortest path trait
     #[test]
     fn has_path() {
         let g = generate_graph(true);
@@ -395,19 +349,87 @@ mod tests {
 
     #[test]
     fn unbiased_random_walk() {
-        let g = complete_graph(20);
+        let g = complete_graph(20, SEED);
 
-        assert!(g.random_walk(0, 5, false).is_some());
-        assert_eq!(g.random_walk(0, 5, false).unwrap().len(), 5);
+        assert!(g.random_walk(0, 5, false, SEED).is_some());
+        assert_eq!(g.random_walk(0, 5, false, SEED).unwrap().len(), 5);
     }
 
     #[test]
     fn biased_random_walk() {
-        let g = complete_graph(20);
+        let g = complete_graph(20, SEED);
 
         println!("{:?}", i32::default());
 
-        assert!(g.random_walk(0, 5, true).is_some());
-        assert_eq!(g.random_walk(0, 5, true).unwrap().len(), 5);
+        assert!(g.random_walk(0, 5, true, SEED).is_some());
+        assert_eq!(g.random_walk(0, 5, true, SEED).unwrap().len(), 5);
+    }
+
+    // centrality trait
+    #[test]
+    fn out_degree() {
+        let mut g = Graph::default();
+        let (node0, node1, node2, node3) =
+            (g.add_node(0), g.add_node(1), g.add_node(2), g.add_node(3));
+        g.add_edge(node0, node1, 1).unwrap();
+        g.add_edge(node0, node2, 1).unwrap();
+
+        assert_eq!(g.out_degree(node0).unwrap(), 2);
+        assert_eq!(g.out_degree(node1).unwrap(), 1);
+        assert_eq!(g.out_degree(node3).unwrap(), 0);
+    }
+
+    #[test]
+    fn in_degree() {
+        let mut g = Graph::default();
+        let (node0, node1, node2, node3) =
+            (g.add_node(0), g.add_node(1), g.add_node(2), g.add_node(3));
+        g.add_edge(node0, node1, 1).unwrap();
+        g.add_edge(node0, node2, 1).unwrap();
+
+        assert_eq!(g.out_degree(node0).unwrap(), 2);
+        assert_eq!(g.out_degree(node1).unwrap(), 1);
+        assert_eq!(g.out_degree(node3).unwrap(), 0);
+    }
+
+    // generate utils
+    #[test]
+    fn generate_random_directed_graph() {
+        let g = random_graph(10, 5, true, SEED);
+
+        assert_eq!(g.num_nodes(), 10);
+        assert_eq!(g.num_edges(), 5);
+    }
+
+    #[test]
+    fn generate_random_undirected_graph() {
+        let g = random_graph(10, 5, false, SEED);
+
+        assert_eq!(g.num_nodes(), 10);
+        assert_eq!(g.num_edges(), 2 * 5);
+    }
+
+    #[test]
+    fn generate_complete_undirected_graph() {
+        let g = complete_graph(6, SEED);
+
+        assert_eq!(g.num_nodes(), 6);
+        assert_eq!(g.num_edges(), 6 * (6 - 1))
+    }
+
+    #[test]
+    fn generate_binary_tree() {
+        let g = perfect_binary_tree(2);
+
+        assert!(g.has_edge(0, 1));
+        assert!(g.has_edge(0, 2));
+        assert!(g.has_edge(1, 3));
+        assert!(g.has_edge(1, 4));
+        assert!(g.has_edge(2, 5));
+        assert!(g.has_edge(2, 6));
+        assert_eq!(g.neighbors(3).unwrap().len(), 0);
+        assert_eq!(g.neighbors(4).unwrap().len(), 0);
+        assert_eq!(g.neighbors(5).unwrap().len(), 0);
+        assert_eq!(g.neighbors(6).unwrap().len(), 0);
     }
 }

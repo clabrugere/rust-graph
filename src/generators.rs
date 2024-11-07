@@ -1,5 +1,7 @@
 #[allow(dead_code)]
-use crate::Graph;
+use crate::graph::Graph;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use rand::{
     distributions::{Distribution, Uniform},
     seq::{IteratorRandom, SliceRandom},
@@ -9,12 +11,17 @@ use std::collections::VecDeque;
 /// Generate a random graph with `num_nodes` nodes and `num_edges` edges. It is built by iterating until reaching the
 /// desired number of edges, at each step sampling a random source node and a random destination node that is not the
 /// source node and not already a neighbor of it. Edge weights are sampled from U(0,1)
-pub fn random_graph(num_nodes: usize, num_edges: usize, directed: bool) -> Graph<u32, f64> {
+pub fn random_graph(
+    num_nodes: usize,
+    num_edges: usize,
+    directed: bool,
+    seed: u64,
+) -> Graph<u32, f64> {
     let num_edges = if directed { num_edges } else { 2 * num_edges };
     let mut g: Graph<u32, f64> = Graph::new(directed);
     let node_inds: Vec<usize> = (0..num_nodes as u32).map(|node| g.add_node(node)).collect();
 
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(seed);
     let weight_sampler = Uniform::new(0.0, 1.0);
 
     while g.num_edges() < num_edges {
@@ -40,9 +47,9 @@ pub fn random_graph(num_nodes: usize, num_edges: usize, directed: bool) -> Graph
 }
 
 /// Generate a complete graph, where each node is a neighbor of every other node. Edge weights are sampled from U(0,1)
-pub fn complete_graph(num_nodes: usize) -> Graph<u32, f64> {
+pub fn complete_graph(num_nodes: usize, seed: u64) -> Graph<u32, f64> {
     let mut g: Graph<u32, f64> = Graph::new(false);
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(seed);
     let weight_sampler = Uniform::new(0.0, 1.0);
 
     let node_inds = g.add_nodes_from_iterator(0..num_nodes as u32);

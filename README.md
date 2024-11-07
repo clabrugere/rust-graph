@@ -177,13 +177,13 @@ The `add_edge` and `add_nodes_then_edge` methods return the unique indices to th
 
 ### Features
 - [ ] Support shortest-path for negative edge weights (Bellman-Ford algorithm)
-- [x] Insert nodes
+- [x] Insert nodes from iterator
 - [ ] Create graph from file
 - [ ] Serialize/deserialize graphs
 - [ ] Heuristic path finding (A*)
 - [ ] Bidirectional search for shortest-path finding
 - [x] Random walks on graphs (unbiased & biased using edge weights)
 - [x] Edges weights aggregation functions
-- [ ] PageRank, Betweenness Centrality, Closeness Centrality
+- [ ] Centrality metrics (PageRank, Betweenness, Closeness, ...)
 - [ ] Get sub-graph based on predicates over the edge weights
 - [x] Graph generators (random, complete, etc.)
