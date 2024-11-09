@@ -35,7 +35,7 @@ pub fn random_graph(
                 node != from_idx
                     && !g
                         .neighbors_inds(*from_idx)
-                        .map_or(false, |neighbors| neighbors.contains(&node))
+                        .map_or(false, |neighbors| neighbors.contains(node))
             })
             .choose(&mut rng)
         {
@@ -72,7 +72,7 @@ pub fn perfect_binary_tree(depth: usize) -> Graph<u32, i32> {
     let mut level = 0;
     let mut next_node = 1_u32;
 
-    while queue.len() > 0 {
+    while !queue.is_empty() {
         level += 1;
 
         if level == depth + 1 {

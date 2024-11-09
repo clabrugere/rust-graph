@@ -17,7 +17,7 @@ struct NotNan<W> {
     value: W,
 }
 
-impl<W: PartialOrd> Eq for NotNan<W> {}
+impl<W: PartialEq> Eq for NotNan<W> {}
 
 impl<W: PartialOrd> Ord for NotNan<W> {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -38,9 +38,9 @@ fn _add_edge<W>(
     to_idx: usize,
     weight: W,
 ) {
-    edge_list
-        .get_mut(&from_idx)
-        .map(|edges| edges.push(Edge { to_idx, weight }));
+    if let Some(edges) = edge_list.get_mut(&from_idx) {
+        edges.push(Edge { to_idx, weight });
+    }
 }
 
 /// Remove an edge from the adjacency list. If the edge doesn't exist, nothing is changed.
@@ -49,11 +49,11 @@ fn _remove_edge<W>(edge_list: &mut HashMap<usize, Vec<Edge<W>>>, from_idx: usize
     // Otherwise we would need to use edges.retain(|edge| edge.to != to)
     // We first get a mutable reference of the edges for `from` node and map over it if the node exists.
     // We then look for the index of the edge we're looking fore and remove it if we find it.
-    edge_list.get_mut(&from_idx).map(|edges| {
+    if let Some(edges) = edge_list.get_mut(&from_idx) {
         if let Some(index) = edges.iter().position(|edge| edge.to_idx == to_idx) {
             edges.swap_remove(index);
         }
-    });
+    }
 }
 
 /// Represents a graph stored using an adjacency list. It is implemented using a hashmap where the keys are unique indices
@@ -194,7 +194,7 @@ where
         // we first look for the node, if it doesn't exist we return false, otherwise we iterate over the edges
         // and try to find the one going to `to`. If we find it, we return true, otherwise false.
         self.edge_list.get(&from_idx).map_or(false, |edges| {
-            edges.iter().find(|&edge| edge.to_idx == to_idx).is_some()
+            edges.iter().any(|edge| edge.to_idx == to_idx)
         })
     }
 
@@ -235,14 +235,12 @@ where
         // then we iterate over the edges corresponding to the node if we got Some(edges) until we find the edge
         // if we find it, we extract the weight on Some(edge) and flatten the nested options
         // otherwise returns None
-        self.outgoing_edges(&from_idx)
-            .map(|edges| {
-                edges
-                    .iter()
-                    .find(|&edge| edge.to_idx == to_idx)
-                    .map(|edge| edge.weight)
-            })
-            .flatten()
+        self.outgoing_edges(&from_idx).and_then(|edges| {
+            edges
+                .iter()
+                .find(|&edge| edge.to_idx == to_idx)
+                .map(|edge| edge.weight)
+        })
     }
 
     /// Returns the unique adjacency matrix with nodes ordered by insertion.
@@ -255,7 +253,7 @@ where
         let mut out = vec![vec![W::zero(); n]; n];
 
         for (row_idx, (from_idx, _)) in self.nodes.iter().enumerate() {
-            for Edge { to_idx, weight } in self.edge_list.get(&from_idx).unwrap() {
+            for Edge { to_idx, weight } in self.edge_list.get(from_idx).unwrap() {
                 let (col_idx, ..) = self.nodes.get_full(to_idx).unwrap();
                 out[row_idx][col_idx] = *weight;
             }
@@ -373,7 +371,7 @@ where
             }
 
             // update distances and predecessors for each neighbor
-            if let Some(edges) = self.edge_list.get(&node_idx) {
+            if let Some(edges) = self.edge_list.get(node_idx) {
                 for edge in edges {
                     let next_node_idx = &edge.to_idx;
                     let new_cost = cost.value + edge.weight;
@@ -382,7 +380,7 @@ where
                         Some(Some(current_cost)) if &new_cost >= current_cost => continue,
                         _ => {
                             distances.insert(next_node_idx, Some(new_cost));
-                            predecessors.insert(next_node_idx, &node_idx);
+                            predecessors.insert(next_node_idx, node_idx);
                             heap.push((
                                 NotNan {
                                     value: Reverse(new_cost).0,
