@@ -1,9 +1,6 @@
 use indexmap::IndexMap;
 use num_traits::{One, Zero};
-use rand::distributions::uniform::SampleUniform;
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
+use rand::{distributions::uniform::SampleUniform, seq::SliceRandom, Rng};
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
@@ -398,12 +395,12 @@ where
 }
 
 pub trait RandomWalk<N, W> {
-    fn random_walk(
+    fn random_walk<R: Rng>(
         &self,
         starting_node_idx: usize,
         num_steps: usize,
         biased: bool,
-        seed: u64,
+        rng: &mut R,
     ) -> Option<Vec<&N>>;
 }
 
@@ -416,18 +413,17 @@ where
     /// either unbiased (each neighbor has the same probabilities of being sampled) or biased (transition probabilities
     /// are proportional to the edges weights).
     /// Note that if a node has no neighbors, the walk will be stuck there until we reach the desired number of steps.
-    fn random_walk(
+    fn random_walk<R: Rng>(
         &self,
         starting_node_idx: usize,
         num_steps: usize,
         biased: bool,
-        seed: u64,
+        rng: &mut R,
     ) -> Option<Vec<&N>> {
         if !self.has_node(starting_node_idx) {
             return None;
         }
 
-        let mut rng = StdRng::seed_from_u64(seed);
         let mut out: Vec<&N> = Vec::new();
         let mut current_node_idx = starting_node_idx;
 
@@ -437,7 +433,7 @@ where
             if let Ok(edge) = self
                 .outgoing_edges(&current_node_idx)
                 .unwrap()
-                .choose_weighted(&mut rng, |edge| if biased { edge.weight } else { W::one() })
+                .choose_weighted(rng, |edge| if biased { edge.weight } else { W::one() })
             {
                 current_node_idx = edge.to_idx;
             }

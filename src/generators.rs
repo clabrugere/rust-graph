@@ -1,32 +1,30 @@
 #[allow(dead_code)]
 use crate::graph::Graph;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 use rand::{
     distributions::{Distribution, Uniform},
     seq::{IteratorRandom, SliceRandom},
+    Rng,
 };
 use std::collections::VecDeque;
 
 /// Generate a random graph with `num_nodes` nodes and `num_edges` edges. It is built by iterating until reaching the
 /// desired number of edges, at each step sampling a random source node and a random destination node that is not the
 /// source node and not already a neighbor of it. Edge weights are sampled from U(0,1)
-pub fn random_graph(
+pub fn random_graph<R: Rng>(
     num_nodes: usize,
     num_edges: usize,
     directed: bool,
-    seed: u64,
+    rng: &mut R,
 ) -> Graph<u32, f64> {
     let num_edges = if directed { num_edges } else { 2 * num_edges };
     let mut g: Graph<u32, f64> = Graph::new(directed);
     let node_inds: Vec<usize> = (0..num_nodes as u32).map(|node| g.add_node(node)).collect();
 
-    let mut rng = StdRng::seed_from_u64(seed);
     let weight_sampler = Uniform::new(0.0, 1.0);
 
     while g.num_edges() < num_edges {
-        let weight = weight_sampler.sample(&mut rng);
-        let from_idx = node_inds.choose(&mut rng).unwrap();
+        let weight = weight_sampler.sample(rng);
+        let from_idx = node_inds.choose(rng).unwrap();
 
         // sample another node that is not `from` and that is not already a neighbor of it
         if let Some(to_idx) = node_inds
@@ -37,7 +35,7 @@ pub fn random_graph(
                         .neighbors_inds(*from_idx)
                         .map_or(false, |neighbors| neighbors.contains(node))
             })
-            .choose(&mut rng)
+            .choose(rng)
         {
             g.add_edge(*from_idx, *to_idx, weight).unwrap();
         }
@@ -47,16 +45,15 @@ pub fn random_graph(
 }
 
 /// Generate a complete graph, where each node is a neighbor of every other node. Edge weights are sampled from U(0,1)
-pub fn complete_graph(num_nodes: usize, seed: u64) -> Graph<u32, f64> {
+pub fn complete_graph<R: Rng>(num_nodes: usize, rng: &mut R) -> Graph<u32, f64> {
     let mut g: Graph<u32, f64> = Graph::new(false);
-    let mut rng = StdRng::seed_from_u64(seed);
     let weight_sampler = Uniform::new(0.0, 1.0);
 
     let node_inds = g.add_nodes_from_iterator(0..num_nodes as u32);
 
     for from_idx in node_inds {
         for to_idx in from_idx + 1..num_nodes {
-            let weight = weight_sampler.sample(&mut rng);
+            let weight = weight_sampler.sample(rng);
             g.add_edge(from_idx, to_idx, weight).unwrap();
         }
     }

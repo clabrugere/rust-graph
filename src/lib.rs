@@ -1,6 +1,5 @@
 pub mod generators;
 pub mod graph;
-
 pub mod prelude {
     pub use crate::graph::{Centrality, Graph, RandomWalk, ShortestPath, Traverse};
 }
@@ -10,6 +9,7 @@ mod tests {
     #[allow(dead_code)]
     use crate::generators::{complete_graph, perfect_binary_tree, random_graph};
     use crate::graph::{Centrality, Graph, RandomWalk, ShortestPath, Traverse};
+    use rand::{rngs::StdRng, SeedableRng};
     use std::cmp::{Eq, Ord, PartialEq};
     use std::collections::HashSet;
 
@@ -349,20 +349,22 @@ mod tests {
 
     #[test]
     fn unbiased_random_walk() {
-        let g = complete_graph(20, SEED);
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let g = complete_graph(20, &mut rng);
 
-        assert!(g.random_walk(0, 5, false, SEED).is_some());
-        assert_eq!(g.random_walk(0, 5, false, SEED).unwrap().len(), 5);
+        assert!(g.random_walk(0, 5, false, &mut rng).is_some());
+        assert_eq!(g.random_walk(0, 5, false, &mut rng).unwrap().len(), 5);
     }
 
     #[test]
     fn biased_random_walk() {
-        let g = complete_graph(20, SEED);
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let g = complete_graph(20, &mut rng);
 
         println!("{:?}", i32::default());
 
-        assert!(g.random_walk(0, 5, true, SEED).is_some());
-        assert_eq!(g.random_walk(0, 5, true, SEED).unwrap().len(), 5);
+        assert!(g.random_walk(0, 5, true, &mut rng).is_some());
+        assert_eq!(g.random_walk(0, 5, true, &mut rng).unwrap().len(), 5);
     }
 
     // centrality trait
@@ -395,7 +397,8 @@ mod tests {
     // generate utils
     #[test]
     fn generate_random_directed_graph() {
-        let g = random_graph(10, 5, true, SEED);
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let g = random_graph(10, 5, true, &mut rng);
 
         assert_eq!(g.num_nodes(), 10);
         assert_eq!(g.num_edges(), 5);
@@ -403,7 +406,8 @@ mod tests {
 
     #[test]
     fn generate_random_undirected_graph() {
-        let g = random_graph(10, 5, false, SEED);
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let g = random_graph(10, 5, false, &mut rng);
 
         assert_eq!(g.num_nodes(), 10);
         assert_eq!(g.num_edges(), 2 * 5);
@@ -411,7 +415,8 @@ mod tests {
 
     #[test]
     fn generate_complete_undirected_graph() {
-        let g = complete_graph(6, SEED);
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let g = complete_graph(6, &mut rng);
 
         assert_eq!(g.num_nodes(), 6);
         assert_eq!(g.num_edges(), 6 * (6 - 1))
